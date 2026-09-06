@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OpenGL ES 3.0 实验室</string>
+    <string name="main_title">OpenGL ES 3.0 技术实验室</string>
+    <string name="main_subtitle">自建 GL 线程 · EGL 直连 · 32 个技术点按难度排序：01~06 零基础概念 → 07~16 基础动手 → 17~24 纹理与光照 → 25~32 高级进阶</string>
+    <string name="back">‹ 返回</string>
+    <string name="panel_toggle">▲ 技术讲解与参数调节</string>
+    <string name="section_detail">📖 技术讲解</string>
+    <string name="section_params">🎛 可调参数</string>
+    <string name="fps_init">-- FPS</string>
+</resources>
