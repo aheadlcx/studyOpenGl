@@ -5,6 +5,10 @@
 OpenGL ES 3.0 的核心技术点。每个界面都带**可实时调节的参数面板**和**成体系的技术讲解**，
 主界面为**可上下滑动浏览的列表**。
 
+## 📚 文字版教程
+
+全部 32 章的完整教程文档在 [docs/](docs/README.md)——按难度从入门概念到高级进阶排列，每章包含：学习目标、人话概念（配 Android 类比）、核心代码、App 实操指南、API 速查、常见坑、自测题。**建议先读 [docs/README.md](docs/README.md) 的学习路线，再在 App 里逐章验证。**
+
 ```
 minSdk 21 · targetSdk 33 · AGP 7.4.2 · Gradle 8.5 · Java sourceCompatibility 1.7 · 无任何依赖
 ```

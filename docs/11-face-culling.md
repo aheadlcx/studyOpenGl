@@ -1,0 +1,72 @@
+# 11 · 面剔除与绕序
+
+> 对应 App 第 11 项 · 难度：基础状态
+
+## 你将搞懂
+
+- 绕序（winding order）如何定义正面/背面
+- `glCullFace` 与 `glFrontFace` 的用法
+- 面剔除发生在哪个阶段、为什么快
+- "物体突然消失"类 bug 的三大来源
+
+## 先讲人话
+
+把三角形投影到屏幕后，按顶点顺序计算有向面积：**逆时针 CCW** 或 **顺时针 CW**。约定"从外部看逆时针 = 正面"后，`glEnable(GL_CULL_FACE)` 就能把背向面在**光栅化之前**整颗丢弃——封闭物体立刻省掉约一半片元。
+
+> **Android 类比**：像扑克牌只渲染"朝上"的那面——卡背面的数据根本不进着色器。
+
+## 核心代码
+
+```java
+GLES30.glEnable(GLES30.GL_CULL_FACE);
+GLES30.glCullFace(GLES30.GL_BACK);      // 剔除背面（默认）
+GLES30.glFrontFace(GLES30.GL_CCW);      // CCW=正面（默认）；CW 可整体反转
+
+// 关闭
+GLES30.glDisable(GLES30.GL_CULL_FACE);
+```
+
+| 组合 | 效果 |
+|---|---|
+| `CullFace(BACK)` + `FrontFace(CCW)` | 常规：只见正面 |
+| `CullFace(FRONT)` | 只见"内侧"——里外翻转的诡异画面 |
+| `CullFace(FRONT_AND_BACK)` | 全剔除，物体消失 |
+| `FrontFace(CW)` | 绕序约定整体反转 |
+
+## 在 App 里怎么玩（第 11 项）
+
+- **剔除面** 下拉切 BACK/FRONT/FRONT_AND_BACK：彩色立方体 + 内部小球，看"里外翻转"与"整体消失"；
+- **绕序** 切 CCW/CW：正面定义反转，画面里外互换；
+- 观察小球（球面三角形密）：剔除对它同样生效。
+
+## 剔除发生在哪个阶段
+
+图元装配之后、光栅化之前。比"画了再被深度测试丢弃"省掉**整批片元着色**——所以不透明封闭体永远应该开剔除。注意它只对三角形生效，`GL_LINES`/`GL_POINTS` 不受影响。
+
+## "物体突然消失"三大 bug 来源
+
+1. **负值缩放**：`scale.x = -1` 镜像翻转绕序 → 正面变背面被剔除；
+2. **手写顶点绕序错了几个面**：某些角度穿帮——统一用生成器（本工程 `GeoGen` 全部保证从外看 CCW）；
+3. **导入其他引擎的模型绕序相反**：用 `glFrontFace(GL_CW)` 切换，别翻转数据。
+
+## API 速查
+
+| API | 作用 |
+|---|---|
+| `glEnable(GL_CULL_FACE)` | 开启剔除 |
+| `glCullFace` | 剔除哪一面（BACK/FRONT/FRONT_AND_BACK） |
+| `glFrontFace` | 定义正面绕序（CCW/CW） |
+
+## 自测
+
+1. 面剔除在流水线哪一站生效？比深度测试丢弃省什么？
+2. `scale = (-1, 1, 1)` 后物体消失了，最可能的原因和快速解法？
+3. `GL_LINE_LOOP` 会被面剔除影响吗？
+
+<details><summary>查看答案</summary>
+1. 图元装配后、光栅化前；省掉背面三角形整批的片元着色开销（深度测试丢弃则已经跑完 FS）。
+2. 负缩放翻转了绕序；解法：对该 mesh 关剔除，或 glFrontFace 反转，或拆出翻转轴。
+3. 不会，剔除只作用于三角形。
+</details>
+
+➡️ 下一章：[12 · 变换矩阵](12-transform-matrix.md)
