@@ -71,6 +71,26 @@ vec4 tex = texture(u_array, vec3(v_uv, v_layer));
 - **层数超限**：查询 `GL_MAX_ARRAY_TEXTURE_LAYERS`（ES3 下限 256）。
 - **ES2 直接用**：需要 `EXT_texture_array` 扩展，ES3 是核心功能。
 
+## 原理图解与代码逐步拆解
+
+```text
+ 纹理数组（第三维 = 层号）：
+
+   layer 3  ┌──────┐      VS 传层号属性（每实例一份）
+   layer 2  │ 色环  │  ──▶ FS: texture(u_array, vec3(uv, layer))
+   layer 1  │ 砖墙  │            └ uv ┘  └ 整数层号
+   layer 0  └棋盘──┘
+   一次 glTexImage3D 全部上传；一次 draw 各实例贴各的层
+```
+
+逐步拆解：
+
+1. 四张过程图（棋盘/砖墙/噪点/色环）字节首尾相接成一个大 buffer；
+2. `glTexImage3D(target, 0, RGBA8, w, h, layers=4, ...)` 一次上传 4 层——注意第三维；
+3. `glGenerateMipmap(GL_TEXTURE_2D_ARRAY)` 每层独立生成 mip，不互相渗色（对比图集的优势）；
+4. VS 里 `v_layer = mod(a_layer + u_offset + u_time, 4.0)`：层号是顶点属性，滑条/时间可以整体轮换；
+5. FS 里 `texture(u_array, vec3(v_uv, v_layer))` 按层采样——8 个四边形一次 draw、各贴各的图。
+
 ## 自测
 
 1. 一张 256×256、4 层的纹理数组，不生成 mipmap 占多少字节？

@@ -72,6 +72,29 @@ mProgram.set("u_material.emission", 2);
 - **emission 叠加在光照之后**：自发光应独立于光照直接加上（它"自己在亮"）。
 - **贴图颜色空间**：diffuse 是 sRGB、specular/emission 是数据——严格管线要区分（简单场景可忽略）。
 
+## 原理图解与代码逐步拆解
+
+```text
+ 三张贴图各自"接管"一个通道：
+
+  diffuse 贴图   ──▶ 替换物体基色        （砖=红 灰浆=灰）
+  specular 贴图  ──▶ 乘到高光上(灰度蒙版)  （砖面白=反光 缝=黑=不反光）
+  emission 贴图  ──▶ 直接加到最终色       （横条亮起=自发光）
+
+ 绑定流程（三个抽屉）：
+   ActiveTexture(0) Bind(diffuse) ─┐
+   ActiveTexture(1) Bind(specular)─┼─▶ glUniform1i 各自指向抽屉号
+   ActiveTexture(2) Bind(emission)─┘
+```
+
+逐步拆解：
+
+1. 程序化生成三张贴图：砖墙 Canvas、灰度噪点（specular 蒙版）、条纹（emission）；
+2. 三个纹理分别绑到单元 0/1/2（`glActiveTexture` + `glBindTexture`）；
+3. FS 里 `struct Material { sampler2D diffuse, specular, emission; float shininess; }` 组织参数；
+4. 高光计算乘上 `specMask`：灰浆缝是黑色（0）→ 永远无高光；
+5. 自发光直接加到最终色——它与光照无关（"自己在亮"）。
+
 ## 自测
 
 1. specular map 采样后通常取哪个分量？为什么灰度图就够？

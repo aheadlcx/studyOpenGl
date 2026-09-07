@@ -1,5 +1,6 @@
 // Ch28 - Transform feedback: GPU particles with ping-pong buffers (G gravity, +/- count).
 #include "../common/common.h"
+#include "../common/hud.h"
 #include <stdio.h>
 #include <random>
 
@@ -110,7 +111,13 @@ void main() {
         if (win::keyTap('G')) gravity = !gravity;
         if (win::keyTap(VK_ADD)) { count = count < 6000 ? count + 1000 : count; rebuild(); }
         if (win::keyTap(VK_SUBTRACT)) { count = count > 1000 ? count - 1000 : count; rebuild(); }
-        printf("\rparticles: %d gravity: %d   ", count, gravity ? 1 : 0);
+        hud::frame(5,
+            "[CH28] transform feedback  fps %.1f\n"
+            "particles: %d  (physics 100%% on GPU)\n"
+            "gravity: %s   speed: 1.0x\n"
+            "per frame: update pass (XFB capture) + render pass (points)\n"
+            "keys: +/- count | G gravity | ESC quit",
+            w.fps, count, gravity ? "ON " : "OFF");
 
         int vw = w.vpWidth(), vh = w.vpHeight();
         glDisable(GL_DEPTH_TEST);

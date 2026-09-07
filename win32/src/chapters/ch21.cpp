@@ -1,5 +1,6 @@
 // Ch21 - Phong lighting: lit cube + orbiting light (A/D/S/F keys adjust).
 #include "../common/common.h"
+#include "../common/hud.h"
 #include <stdio.h>
 
 int run_ch21() {
@@ -41,7 +42,13 @@ int run_ch21() {
         if (win::keyDown('V')) shininess -= 1.0f;
         ambient = clampf(ambient, 0, 1); diffuse = clampf(diffuse, 0, 2);
         specular = clampf(specular, 0, 2); shininess = clampf(shininess, 2, 128);
-        printf("\ramb=%.2f diff=%.2f spec=%.2f shiny=%.0f   ", ambient, diffuse, specular, shininess);
+        hud::frame(6,
+            "[CH21] Phong  fps %.1f\n"
+            "ambient %.2f   diffuse %.2f\n"
+            "specular %.2f  shininess %.0f\n"
+            "light orbiting: angle %.1f rad\n"
+            "keys: A/Z ambient | D/C diffuse | S/X spec | F/V shininess | ESC quit",
+            w.fps, ambient, diffuse, specular, shininess, (float)w.time * 0.8f);
 
         float lx = sinf((float)w.time * 0.8f) * 4.0f;
         float lz = cosf((float)w.time * 0.8f) * 4.0f;

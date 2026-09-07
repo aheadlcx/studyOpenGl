@@ -1,5 +1,6 @@
 // Ch12 - Transform matrix: T*R*S sliders via arrow keys + axes.
 #include "../common/common.h"
+#include "../common/hud.h"
 #include <stdio.h>
 
 int run_ch12() {
@@ -45,8 +46,16 @@ void main() { fragColor = vec4(v_color, 1.0); }
         if (win::keyDown(VK_SUBTRACT) || win::keyDown(VK_OEM_MINUS)) scale -= dt;
         if (win::keyDown('Q')) rotY -= 60 * dt;
         if (win::keyDown('E')) rotY += 60 * dt;
+        if (win::keyDown('A')) rotX -= 60 * dt;
+        if (win::keyDown('D')) rotX += 60 * dt;
         scale = clampf(scale, 0.2f, 2.0f);
-        printf("\rT=(%.2f,%.2f,%.2f) S=%.2f rotY=%.0f   ", px, py, pz, scale, rotY);
+        hud::frame(5,
+            "[CH12] Model = T*R*S   fps %.1f\n"
+            "T = (%.2f, %.2f, %.2f)\n"
+            "R = rotY %.0f deg  rotX %.0f deg\n"
+            "S = %.2f (uniform)\n"
+            "keys: arrows move | +/- scale | Q/E rotY | A/D rotX | ESC quit",
+            w.fps, px, py, pz, rotY, rotX, scale);
 
         int vw = w.vpWidth(), vh = w.vpHeight();
         resetState(vw, vh, 0.04f, 0.05f, 0.09f);

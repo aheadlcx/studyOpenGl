@@ -113,6 +113,13 @@ bool open(Window& w, const char* title, int width, int height, int msaaSamples) 
     ShowWindow(w.hwnd, SW_SHOW);
 
     w.hdc = GetDC(w.hwnd);
+    // enable ANSI/VT escape sequences in the attached console (Win10+)
+    if (AttachConsole(ATTACH_PARENT_PROCESS) || GetConsoleWindow()) {
+        HANDLE cout = GetStdHandle(STD_OUTPUT_HANDLE);
+        DWORD mode = 0;
+        if (GetConsoleMode(cout, &mode))
+            SetConsoleMode(cout, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+    }
     int pf = msaaSamples > 0 ? choosePixelFormatARB(w.hdc, msaaSamples) : 0;
     if (pf > 0) {
         PIXELFORMATDESCRIPTOR pfd = {};
@@ -153,8 +160,16 @@ bool beginFrame(Window& w) {
         DispatchMessageA(&msg);
     }
     static auto t0 = std::chrono::steady_clock::now();
+    static double last = 0.0;
+    static float fps = 0.0f;
     auto now = std::chrono::steady_clock::now();
     w.time = std::chrono::duration<double>(now - t0).count();
+    if (w.time > last) {
+        float instant = (float)(1.0 / (w.time - last));
+        fps = fps == 0.0f ? instant : fps * 0.9f + instant * 0.1f;
+        w.fps = fps;
+    }
+    last = w.time;
     return !w.shouldClose;
 }
 

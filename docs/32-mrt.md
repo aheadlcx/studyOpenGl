@@ -78,6 +78,29 @@ Pass2（光照 pass）：全屏四边形逐像素读 G-Buffer 算光照
 - **附件格式不兼容**：FBO incomplete。
 - **以为 MRT 能写深度**：深度仍然只有一份（DEPTH_ATTACHMENT），多张的是颜色。
 
+## 原理图解与代码逐步拆解
+
+```text
+ 一次 draw，两份输出（延迟渲染的 G-Buffer 雏形）：
+
+   FS                                       FBO
+ ┌─────────────────────┐    location=0 ──▶ ┌──────────────┐
+ │ o_albedo = 棋盘颜色  │                   │ 附件0: 颜色图 │
+ │ o_normal = 法线伪彩  │    location=1 ──▶ ┌──────────────┐
+ └─────────────────────┘                   │ 附件1: 法线图 │
+                                            └──────────────┘
+ glDrawBuffers(2, {ATTACHMENT0, ATTACHMENT1})  ← 对应关系声明
+ 显示 pass 可切换查看 / 分屏对比两张"中间产物"
+```
+
+逐步拆解：
+
+1. FS 声明两个 `layout(location=N) out`：location0 写反照率、location1 写法线伪彩（n×0.5+0.5 的经典配色）；
+2. FBO 上挂两张颜色纹理（附件0/1）+ 一张深度 RBO；
+3. `glDrawBuffers(2, {C0, C1})` 声明两个绘制目标——顺序与 location 对应；
+4. 法线伪彩读法：绿色=朝上、粉色=朝右下……学看法线图是做延迟渲染的基本功；
+5. 显示 pass 切换 u_mode：附件0 / 附件1 / 左右分屏——同一帧的两份产物随意查看。
+
 ## 自测
 
 1. `glDrawBuffers(2, {C0, C1})` 中 FS 的 location=1 写到哪里？

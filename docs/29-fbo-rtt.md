@@ -80,6 +80,28 @@ drawFullScreenQuad();                                  // 采样它贴满屏幕
 - **深度没挂**：场景内遮挡失效（物体顺序错乱）。
 - **每帧重建 FBO**：附件创建很贵，尺寸变化才重建。
 
+## 原理图解与代码逐步拆解
+
+```text
+ Pass1（离屏）                       Pass2（上屏）
+ ┌────────────────┐                 ┌────────────────┐
+ │ glBindFBO(fbo)  │                │ glBindFBO(0)    │  ← 切回屏幕
+ │ viewport(1024)  │                │ viewport(屏幕)   │
+ │ 画立方体场景     │──颜色进纹理──▶ │ 采样它贴满屏幕    │
+ │ 深度进 RBO      │                │ (后处理从这开始)  │
+ └────────────────┘                 └────────────────┘
+
+ FBO 组装: fbo + [颜色=纹理] + [深度=RBO] → glCheckFramebufferStatus 必须 COMPLETE
+```
+
+逐步拆解：
+
+1. 颜色附件是一张**普通纹理**（最终要被采样）；深度附件是 **renderbuffer**（只做测试不被读）——各司其职；
+2. `glFramebufferTexture2D / glFramebufferRenderbuffer` 把两者挂到 FBO 的挂点上；
+3. `glCheckFramebufferStatus == GL_FRAMEBUFFER_COMPLETE` 不通过就不能用（缺深度/尺寸不一致都会失败）；
+4. Pass1 画场景前把 viewport 切到 1024²；Pass2 切回屏幕尺寸——**两个状态每次都要重设**；
+5. Pass2 用全屏四边形采样这张纹理：缩放 uv 就是放大缩小画面，翻转 uv.x 就是镜像。
+
 ## 自测
 
 1. 为什么深度附件用 renderbuffer 而不用纹理？

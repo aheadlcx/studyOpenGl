@@ -13,6 +13,7 @@ struct Window {
     int   height = 700;
     bool  shouldClose = false;
     double time = 0.0;          // seconds since open (updated by beginFrame)
+    float fps = 0.0f;           // smoothed FPS (updated by beginFrame)
 
     int vpWidth()  const { return width;  }
     int vpHeight() const { return height; }

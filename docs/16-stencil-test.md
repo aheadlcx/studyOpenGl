@@ -71,6 +71,28 @@ GLES30.glDepthMask(true);
 - **Pass2 忘了 `glStencilMask(0x00)`**：描边又往模板里写值，越描越厚。
 - **放大中心不在物体中心**：描边粗细不均——先 translate 到原点再 scale。
 
+## 原理图解与代码逐步拆解
+
+```text
+ 描边三段式（俯视截面）：
+
+ Pass1   ██████          模板缓冲:  000111000
+         ██████  ←画物体            └物体区=1
+
+ Pass2   ██████          画放大物体  只允许"模板≠1"的片元
+        ████████          ┌──────┐
+ Pass3  ░░░░░░░░          │██████│  ░=只有环带被描边色覆盖 → 描边！
+        ▓▓▓▓▓▓▓▓          └──────┘
+```
+
+逐步拆解：
+
+1. 地板绘制前 `glStencilMask(0x00)`：地板不许改模板；
+2. Pass1 画物体：`glStencilFunc(ALWAYS, 1)` 恒通过 + `glStencilOp(KEEP,KEEP,REPLACE)` 通过时把模板写为 1；
+3. Pass2 `glStencilFunc(NOTEQUAL, 1)`：只放行模板值≠1 的片元；同时 `glStencilMask(0)`（不许改）+ `glDepthMask(false)`（不许写深度）；
+4. Pass2 画**放大 1.12 倍**的同款物体：环带区（模板=0）被画成橙色，其余被模板挡掉 → 描边；
+5. 恢复所有状态，否则下一帧全乱。
+
 ## 自测
 
 1. `glStencilOp(KEEP, KEEP, REPLACE)` 三个参数分别对应什么结果？

@@ -56,6 +56,31 @@ GLES30.glBlitFramebuffer(0, 0, w, h, 0, 0, w, h,
 - **以为 MSAA 省事直接开窗口级 MSAA（EGL_SAMPLES）**：可行，但拿不到 resolve 后的纹理做后处理；FBO 方案才兼容后处理管线。
 - **期待 MSAA 平滑纹理**：它只平滑几何边缘；纹理摩尔纹靠 mipmap（第 18 章），alpha 镂空边缘靠 alpha-to-coverage 或 softer clip。
 
+## 原理图解与代码逐步拆解
+
+```text
+ 无 MSAA（中心1点）                 4x MSAA（每像素4点）
+
+ ┌───┬───┬───┐                    ┌───┬───┬───┐
+ │ ▒ │   │   │                    │▪▒▪│   │   │   颜色只算一次
+ ├───┼───┼───┤                    ├───┼───┼───┤   覆盖率 2/4=50%
+ │   │ ▒ │   │                    │   │▪▒▪│   │   → 边缘柔和
+ ├───┼───┼───┤                    ├───┼───┼───┤
+ │   │   │ ▒ │                    │   │   │▪▒▪│
+ └───┴───┴───┘                    └───┴───┴───┘
+ 二值硬边（锯齿）                   平滑渐变边
+
+ ES3 流程: 场景→多重采样RBO(FBO) ─blit解析─▶ 普通纹理 → 采样上屏
+```
+
+逐步拆解：
+
+1. `glRenderbufferStorageMultisample(target, samples, ...)` 创建 4x/8x 的颜色+深度存储（查询 GL_MAX_SAMPLES 先钳制）；
+2. 场景画进 MSAA FBO——注意 ES3.0 多重采样只能配 renderbuffer（不能配纹理）；
+3. `glBlitFramebuffer(..., GL_COLOR_BUFFER_BIT, GL_NEAREST)` 把 MSAA 内容**解析**（对采样点取平均）到普通 FBO 的纹理上；
+4. 解析后的纹理作为全屏四边形采样显示；
+5. 按 S 在 0/2/4/8（≤MAX_SAMPLES）间切换：细白线的边缘从硬台阶变柔和。
+
 ## 自测
 
 1. MSAA 和 4× 超采样（SSAA）的本质区别？

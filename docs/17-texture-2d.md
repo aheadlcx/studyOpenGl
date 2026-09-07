@@ -78,6 +78,31 @@ vec4 tex = texture(u_tex, v_uv);
 - **RTT/天空盒纹理用 REPEAT**：边缘把对面"绕"进来 → 必须 CLAMP_TO_EDGE。
 - **NPOT（非2次幂）纹理**：ES3 已完全支持 + mipmap，ES2 时代限制不再。
 
+## 原理图解与代码逐步拆解
+
+```text
+ 采样管线：uv ──wrap──▶ [0,1] ──filter──▶ 最终颜色
+
+ uv=(0.25,0.25)                纹素网格 (4×4 示意)
+      │                        ┌───┬───┬───┬───┐
+      ▼                        │ A │ B │ C │ D │
+ [0,1]内直接用 ────────▶      ├───┼───┼───┼───┤
+ uv=(1.5,0.2)                 │ E │ F │ G │ H │
+      │ REPEAT → (0.5,0.2)    ├───┼───┼───┼───┤
+      │ CLAMP  → (1.0,0.2)    │ I │ J │ K │ L │
+      ▼                        └───┴───┴───┴───┘
+ NEAREST → 取最近1个纹素（块状）
+ LINEAR  → 取周围4个加权（平滑）
+```
+
+逐步拆解：
+
+1. `glGenTextures` + `glBindTexture` 创建纹理对象；
+2. `GLUtils.texImage2D`（或 `glTexImage2D` + 手动像素）把 Bitmap 像素上传到显存；
+3. `glTexParameteri` ×4：wrap S/T、min filter、mag filter——每个都是独立旋钮；
+4. 绘制时三步：`glActiveTexture(GL_TEXTURE0)` → `glBindTexture(图)` → `glUniform1i(loc, 0)`；
+5. FS 里 `texture(u_tex, v_uv)` 完成采样；uv 超界走 wrap，尺寸不匹配走 filter。
+
 ## 自测
 
 1. 三张贴图分别绑在单元 0/1/2，shader 里 sampler 要怎么对应？

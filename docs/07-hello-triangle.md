@@ -98,6 +98,26 @@ if (status[0] == 0) {
 - **uniform 被优化掉**：没用的 uniform `glGetUniformLocation` 返回 -1，`glUniform*` 传 -1 是静默无操作，不算错误但也不生效。
 - **黑屏排查顺序**：clear 颜色对不对 → program 链接了吗 → mvp 是不是单位矩阵 → 顶点数据 location 对不对。
 
+## 原理图解与代码逐步拆解
+
+```text
+ 步骤① 数据           步骤② 程序              步骤③ 每帧
+ ┌──────────────┐    ┌──────────────┐      ┌──────────────────┐
+ │ v0 -0.6,-0.5 │    │ VS源码 ──编译─┐│      │ glUseProgram(p)  │
+ │ v1  0.6,-0.5 │──▶ │ FS源码 ──编译─┤│─▶链接─▶│ 设 u_mvp/u_tint  │
+ │ v2  0.0,0.62 │    │        └─────┘│      │ draw(TRIANGLES)  │
+ └──────────────┘    └──────────────┘      └──────────────────┘
+      VBO+VAO              program              每帧重复
+```
+
+逐步拆解（对照【代码】页签）：
+
+1. **建数据**：18 个 float 两两成组——每个顶点 6 个数，前 3 个是"在哪"（x,y,z），后 3 个是"什么颜色"（r,g,b）。这就是**交错布局**。
+2. **进显存**：`glGenBuffers` 领一块显存 → `glBindBuffer` 把它设为"当前操作对象" → `glBufferData` 一次性把 18 个 float 拷进去。`GL_STATIC_DRAW` 是给驱动的提示："写一次读很多次"。
+3. **登记读法**：`glVertexAttribPointer(0, 3, ...)` 告诉 GPU"location 0 的属性，每 24 字节一组，从第 0 字节读 3 个 float"；颜色同理但从第 12 字节开始。
+4. **编译 shader**：VS 计算 `gl_Position`（顶点在哪），FS 计算 `fragColor`（像素什么颜色）。编译失败会打印行号和原因——GLSL 是运行时编译的语言。
+5. **绘制**：`glDrawArrays(GL_TRIANGLES, 0, 3)` = "从第 0 个顶点开始，拿 3 个顶点，绑成 1 个三角形"。之后 ②→⑦ 站全自动完成。
+
 ## 自测
 
 1. FS 里少了 `precision` 声明会怎样？

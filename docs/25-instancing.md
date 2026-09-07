@@ -78,6 +78,26 @@ void main() {
 - **实例数太大一次提交卡顿**：几万实例考虑分批或 LOD。
 - **ES2 直接用**：需要扩展 `EXT_instanced_arrays`，ES3 是核心。
 
+## 原理图解与代码逐步拆解
+
+```text
+ 传统方式（1600 次 draw）            实例化（1 次 draw）
+
+ for i in 0..1599:                  ┌ VBO0: 立方体模板（每顶点）
+   setInstanceData(i)               └ VBO1: [偏移xyz,缩放,颜色rgb]×1600
+   glDraw(...)                                │ divisor=1
+ CPU 爆炸                          glDrawElementsInstanced(1次)
+                                    每实例: GPU 自动步进一次 VBO1
+```
+
+逐步拆解：
+
+1. 模板立方体 VBO 正常配置（location 0/1，divisor 默认 0=每顶点）；
+2. 实例缓冲 VBO 装 1600 份 `[offset.xyz, scale] + [color.rgb]`，`glVertexAttribDivisor(loc, 1)` 让它**每实例只步进一次**；
+3. VS 里 `gl_InstanceID`（0~N-1）生成自转相位和渐变色——连实例缓冲都可以省一部分；
+4. `meshAddInstanced`（App 版 drawInstanced）一条命令画完全部实例；
+5. 拖 N 滑条从 1 到 40（1600 实例）观察 FPS：瓶颈几乎不出现——省的就是 1599 次 CPU 提交。
+
 ## 自测
 
 1. `glVertexAttribDivisor(loc, 2)` 是什么效果？

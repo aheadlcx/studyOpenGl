@@ -89,6 +89,27 @@ fragColor = vec4(color, tex.a * life);         // 按寿命淡出
 - **忘开 RASTERIZER_DISCARD**：更新 pass 画出一屏乱点（VS 输出没写 gl_Position 时的未定义值）。
 - **XFB 绑定的 buffer 同时又被顶点属性引用**：同上，读写分离。
 
+## 原理图解与代码逐步拆解
+
+```text
+ 乒乓双缓冲 + XFB 捕获（GPU 自循环，CPU 不碰数据）：
+
+ 偶数帧:  VBO A ─读─▶ VS(物理积分) ─写(XFB)─▶ VBO B
+ 奇数帧:  VBO B ─读─▶ VS(物理积分) ─写(XFB)─▶ VBO A
+ 渲染永远画"最新写入"的那份
+
+ 更新 pass: RASTERIZER_DISCARD 开启 → 只有 VS 执行，不生成像素
+ 渲染 pass: 正常管线，点精灵 gl_PointCoord 采样软圆贴图
+```
+
+逐步拆解：
+
+1. 链接前 `glTransformFeedbackVaryings({"v_posLife","v_velSeed"}, INTERLEAVED)`——告诉驱动"这两个 out 要存回缓冲"（放 link 后就失效！）；
+2. 每帧：绑 `vaos[cur]`（读源）+ XFB 对象绑 `vbos[dst]`（写目标）；
+3. `glEnable(RASTERIZER_DISCARD)` + `glBeginTransformFeedback(POINTS)` + `glDrawArrays` + `glEndTransformFeedback`：2000 个粒子的位置/速度完成一次积分；
+4. 乒乓：`cur = dst` 下一帧方向反转——避免读写同一块缓冲的未定义行为；
+5. 渲染 pass 直接绑 `vaos[dst]` 画点：粒子颜色按寿命冷暖渐变、`gl_PointCoord` 采软圆贴图。
+
 ## 自测
 
 1. `glTransformFeedbackVaryings` 必须在哪个调用之前？为什么？

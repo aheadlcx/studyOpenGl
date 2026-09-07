@@ -69,6 +69,25 @@ GLES30.glBindBuffer(GLES30.GL_UNIFORM_BUFFER, 0);
 - **在 link 前调 glUniformBlockBinding**：必须在链接成功之后。
 - **每帧重复 glBindBufferBase**：绑定是全局状态，设一次即可，换 program 不用重绑。
 
+## 原理图解与代码逐步拆解
+
+```text
+ 传统 uniform                       UBO 共享
+
+ programA ── 各存一份光照参数        programA ─┐
+ programB ── 各存一份（改两遍！）     programB ─┼─▶ binding 0 ──▶ ┌────────┐
+                                    programC ─┘                 │ UBO 显存 │
+ 改一次参数 = use+uniform ×N                        一次 glBufferSubData 全生效
+```
+
+逐步拆解：
+
+1. GLSL：`layout(std140) uniform LightBlock { vec4 lightColor; float intensity; };` 两个 FS 各写一份同名块；
+2. `glGetUniformBlockIndex(prog, "LightBlock")` 拿块索引 → `glUniformBlockBinding(prog, idx, 0)` 绑到槽位 0（ES3 不支持 layout(binding)，必须运行时）；
+3. `glBindBufferBase(GL_UNIFORM_BUFFER, 0, ubo)` 把显存挂到槽位 0——此后所有 program 自动看到它；
+4. 改参数：`glBindBuffer(UBO)` + `glBufferSubData(0, 32, data)`，两个立方体同时变色；
+5. std140 对齐：`vec4 color`(0~15) + `float intensity`(16~19) + 12 字节填充 = 32 字节——vec3 按 16 对齐是最常见的坑。
+
 ## 自测
 
 1. `vec3 lightDir; float power;` 在 std140 里的偏移分别是多少？

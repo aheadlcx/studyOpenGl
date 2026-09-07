@@ -66,6 +66,27 @@ if (mapped != null) {
 - **映射时没绑定目标缓冲**：`glMapBufferRange` 作用于"当前绑定到 target 的缓冲"。
 - **把 STATIC_DRAW 的缓冲每帧映射**：放错堆，性能反而差——常改的用 DYNAMIC_DRAW。
 
+## 原理图解与代码逐步拆解
+
+```text
+ glBufferSubData（可能卡）          glMapBufferRange + INVALIDATE（不卡）
+
+ GPU: 正在读旧块 ▓▓▓▓              GPU: 正在读旧块 ▓▓▓▓
+ CPU: 想改同一块 ▓▓▓▓              CPU: 拿到新块 ░░░░ 直接写
+      └── 等GPU读完…(卡顿)              └ 互不干扰！unmap 后交换
+
+ INVALIDATE_BUFFER_BIT 的含义 = "旧数据全不要了"
+ → 驱动直接给 CPU 一块新内存（孤儿化），GPU 继续用旧的
+```
+
+逐步拆解：
+
+1. 顶点缓冲创建用 `GL_DYNAMIC_DRAW`（提示驱动：每帧改）；
+2. 每帧 `glMapBufferRange(0, size, WRITE|INVALIDATE_BUFFER)` 拿到 CPU 指针；
+3. 直接把 4900 个顶点的波浪高度写进这块内存（就是普通内存写入）；
+4. `glUnmapBuffer` 通知驱动"写完了"——数据对 GPU 可见；
+5. 按 M 切换 subData 模式对比 FPS：数据量越大差距越明显。
+
 ## 自测
 
 1. `INVALIDATE_BUFFER_BIT` 为什么能免同步？

@@ -1,5 +1,6 @@
 // Ch09 - Primitive types: one vertex set, all draw modes (keys 1-8).
 #include "../common/common.h"
+#include "../common/hud.h"
 #include <stdio.h>
 
 int run_ch09() {
@@ -93,23 +94,31 @@ void main() { fragColor = vec4(v_color, 1.0); }
         if (win::keyDown(VK_ADD) || win::keyDown(VK_OEM_PLUS)) psize += 0.5f;
         if (win::keyDown(VK_SUBTRACT) || win::keyDown(VK_OEM_MINUS)) psize -= 0.5f;
         psize = clampf(psize, 1.0f, 32.0f);
-        printf("\rmode: %-18s point size: %4.1f  ", names[mode], psize);
+        float spinSpeed = win::keyDown(VK_SHIFT) ? 3.0f : 0.5f;
 
         int vw = w.vpWidth(), vh = w.vpHeight();
         resetState(vw, vh, 0.04f, 0.05f, 0.09f);
 
         Mat4 mvp;
         matIdentity(mvp);
-        matRotate(mvp, (float)w.time * 30.0f, 0, 0, 1);
+        matRotate(mvp, (float)w.time * 30.0f * spinSpeed, 0, 0, 1);
 
         glUseProgram(prog);
         glUniformMatrix4fv(uMvp, 1, GL_FALSE, mvp);
         glUniform1f(uPs, psize);
+        int idxCount = (int)idx[mode].size();
         if (mode == 7) glEnable(GL_PRIMITIVE_RESTART_FIXED_INDEX);
         glBindVertexArray(vao[mode]);
-        glDrawElements(modes[mode], (GLsizei)idx[mode].size(), GL_UNSIGNED_INT, 0);
+        glDrawElements(modes[mode], idxCount, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
         if (mode == 7) glDisable(GL_PRIMITIVE_RESTART_FIXED_INDEX);
+
+        hud::frame(4,
+            "[CH09] fps %.1f\n"
+            "mode %d: GL_%s  indices=%d\n"
+            "point size %.1f  spin %.1fx\n"
+            "keys: 1-8 mode | +/- size | SHIFT fast spin | ESC quit",
+            w.fps, mode + 1, names[mode], idxCount, psize, spinSpeed);
 
         if (win::keyDown(VK_ESCAPE)) break;
         win::endFrame(w);

@@ -1,5 +1,6 @@
 // Ch14 - Depth test: 8 funcs, depth mask, polygon offset (D/M/O keys).
 #include "../common/common.h"
+#include "../common/hud.h"
 #include <stdio.h>
 
 int run_ch14() {
@@ -55,7 +56,14 @@ void main() { fragColor = vec4(v_color, 1.0); }
         if (win::keyTap('D')) func = (func + 1) % 8;
         if (win::keyTap('M')) maskOn = !maskOn;
         if (win::keyTap('O')) offset = !offset;
-        printf("\rdepthFunc=%-9s mask=%d polygonOffset=%d  ", fnNames[func], maskOn ? 1 : 0, offset);
+        hud::frame(5,
+            "[CH14] fps %.1f\n"
+            "glDepthFunc  = GL_%s\n"
+            "glDepthMask  = %s (1=write, 0=ghost)\n"
+            "polygonOffset= %s  (factor=2, units=2)\n"
+            "keys: D func | M mask | O offset | ESC quit",
+            w.fps, fnNames[func], maskOn ? "GL_TRUE " : "GL_FALSE",
+            offset ? "ON " : "OFF");
 
         int vw = w.vpWidth(), vh = w.vpHeight();
         resetState(vw, vh, 0.06f, 0.08f, 0.12f);

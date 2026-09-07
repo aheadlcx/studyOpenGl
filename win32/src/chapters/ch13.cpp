@@ -1,5 +1,6 @@
 // Ch13 - Camera & projection: orbit camera, fov/near adjustable.
 #include "../common/common.h"
+#include "../common/hud.h"
 #include <stdio.h>
 
 int run_ch13() {
@@ -32,7 +33,13 @@ void main() { fragColor = vec4(u_color, 1.0); }
         if (win::keyTap('F')) fov = fov >= 100.0f ? 30.0f : fov + 10.0f;
         if (win::keyTap('N')) nearZ = nearZ >= 2.0f ? 0.1f : nearZ + 0.2f;
         pitch = clampf(pitch, -1.3f, 1.3f);
-        printf("\rfov=%4.0f  near=%.1f   ", fov, nearZ);
+        hud::frame(5,
+            "[CH13] fps %.1f\n"
+            "camera: yaw %.2f rad  pitch %.2f rad\n"
+            "orbit radius 14, always looking at origin\n"
+            "fov %.0f deg  near %.1f  far 60\n"
+            "keys: arrows orbit | F fov | N/n near | ESC quit",
+            w.fps, yaw, pitch, fov, nearZ);
 
         int vw = w.vpWidth(), vh = w.vpHeight();
         resetState(vw, vh, 0.35f, 0.55f, 0.75f);

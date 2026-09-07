@@ -1,5 +1,6 @@
 // Ch25 - Instancing: one draw call draws N*N cubes (+/-: grid size, W: wave).
 #include "../common/common.h"
+#include "../common/hud.h"
 #include <stdio.h>
 
 int run_ch25() {
@@ -88,8 +89,13 @@ void main() {
         gridF = clampf(gridF, 1.0f, 40.0f);
         if (win::keyTap('W')) wave = wave > 0 ? 0.0f : 0.5f;
         if (rebuildNeeded) rebuild();
-        printf("\rgrid: %d x %d (%d instances, 1 draw call) wave=%.1f   ",
-               (int)gridF, (int)gridF, count, wave);
+        hud::frame(5,
+            "[CH25] instancing  fps %.1f\n"
+            "grid %d x %d = %d cubes\n"
+            "draw calls: 1   (compare: traditional = %d calls)\n"
+            "wave %.1f\n"
+            "keys: +/- grid N | W wave | ESC quit",
+            w.fps, (int)gridF, (int)gridF, count, count, wave);
 
         int vw = w.vpWidth(), vh = w.vpHeight();
         resetState(vw, vh, 0.04f, 0.05f, 0.09f);

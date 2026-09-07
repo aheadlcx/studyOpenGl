@@ -1,5 +1,6 @@
 // Ch07 - Hello triangle: the complete minimal program (T second triangle, H hue).
 #include "../common/common.h"
+#include "../common/hud.h"
 #include <stdio.h>
 
 int run_ch07() {
@@ -32,12 +33,16 @@ void main() { fragColor = vec4(v_color * u_tint, 1.0); }
 
     bool second = true;
     float hue = 0.55f, rotSpeed = 0.5f, angle = 0;
+    float scale = 1.0f;
 
     while (win::beginFrame(w)) {
         if (win::keyTap('T')) second = !second;
         if (win::keyTap('H')) hue += 0.1f;
         if (win::keyDown(VK_UP))   rotSpeed += 0.01f;
         if (win::keyDown(VK_DOWN)) rotSpeed -= 0.01f;
+        if (win::keyDown(VK_RIGHT)) scale += 0.005f;
+        if (win::keyDown(VK_LEFT))  scale -= 0.005f;
+        scale = clampf(scale, 0.3f, 2.0f);
         angle += rotSpeed;
 
         int vw = w.vpWidth(), vh = w.vpHeight();
@@ -55,7 +60,9 @@ void main() { fragColor = vec4(v_color * u_tint, 1.0); }
 
         Mat4 model, mvp;
         matIdentity(model);
+        matTranslate(model, 0, 0, 0);
         matRotate(model, angle, 0, 0, 1);
+        matScale(model, scale, scale, scale);
         matIdentity(mvp);
         matMul(mvp, mvp, model);
 
@@ -64,6 +71,13 @@ void main() { fragColor = vec4(v_color * u_tint, 1.0); }
         glUniform3f(uTint, tr, tg, tb);
         mainTri.draw(GL_TRIANGLES);
         if (second) secondTri.draw(GL_TRIANGLES);
+
+        hud::frame(4,
+            "[CH07] fps %.1f | angle %.0f deg\n"
+            "tint RGB (%.2f, %.2f, %.2f) hue=%.2f\n"
+            "scale=%.2f secondTriangle=%d\n"
+            "keys: T second | H hue | UP/DOWN speed | LEFT/RIGHT scale | ESC quit",
+            w.fps, angle, tr, tg, tb, hue, scale, second ? 1 : 0);
 
         if (win::keyDown(VK_ESCAPE)) break;
         win::endFrame(w);

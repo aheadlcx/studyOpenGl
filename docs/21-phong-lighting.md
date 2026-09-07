@@ -88,6 +88,32 @@ diffuse *= attenuation;
 - **dot 结果为负还参与计算**：背面被"假照亮"，必须 `max(dot, 0.0)`。
 - **光源位置在相机空间、法线在世界空间**：空间不统一，光照乱——所有向量统一到同一空间。
 
+## 原理图解与代码逐步拆解
+
+```text
+ ADS 三向量的几何意义（逐片元）：
+
+        L ↖       ↗ V
+          ╲  ▲N  ╱
+           ╲ │ ╱            N=法线  L=指向光源
+            ╲│╱             V=指向相机
+   ─────────●─────────      R = reflect(-L, N)
+    片元表面        R↘
+
+  ambient = 常数            （整个面一样亮）
+  diffuse ∝ dot(N,L)        （朝光的面亮，背光的面黑）
+  specular ∝ pow(dot(R,V), shininess)
+                            （R 与 V 对齐时出现白斑；shininess 越大斑越小）
+```
+
+逐步拆解：
+
+1. VS 把法线（`mat3(u_model) * a_normal`）和世界坐标传给 FS；
+2. FS 把三个向量都 `normalize`——插值后的向量长度不保证是 1；
+3. `max(dot(N,L), 0)`：背光面负数截断为 0（不会被假照亮）；
+4. `pow(dot(R,V), shininess)`：指数越大曲线越尖，高光越小越锐；
+5. 衰减（可选）：`1/(kc + kl·d + kq·d²)` 让远处光变暗。
+
 ## 自测
 
 1. `shininess` 调大会发生什么？
