@@ -36,6 +36,6 @@ if not exist build mkdir build
 set SRC=src/main.cpp src/common/glfuncs.cpp
 for %%f in (src\chapters\ch*.cpp) do call set SRC=%%SRC%% %%f
 g++ -O2 -std=c++14 %SRC% -o build\study_gl.exe ^
-    -lopengl32 -luser32 -lgdi32 -municode
+    -lopengl32 -luser32 -lgdi32
 if %errorlevel%==0 echo [ok] build\study_gl.exe created. Run: build\study_gl.exe
 exit /b %errorlevel%

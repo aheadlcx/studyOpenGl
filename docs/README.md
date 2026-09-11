@@ -83,6 +83,21 @@
 | 31 | [msaa.md](31-msaa.md) | 多重采样 MSAA |
 | 32 | [mrt.md](32-mrt.md) | 多渲染目标 MRT |
 
+### 附录（学完 32 章后按需查阅）
+
+| 文档 | 内容 |
+|---|---|
+| [appendix-a-egl-glthread.md](appendix-a-egl-glthread.md) | EGL 四大对象 + 自建 GL 线程源码逐行解读（App 第 01 章之前的"地基"） |
+| [appendix-b-android-integration.md](appendix-b-android-integration.md) | Android 实战：相机滤镜（SurfaceTexture/OES）、Bitmap 加载、截图、上下文丢失 |
+| [appendix-c-glsl-reference.md](appendix-c-glsl-reference.md) | GLSL ES 3.00 语言速查：类型/swizzle/内建函数/精度/编译错误 |
+| [appendix-d-debugging-performance.md](appendix-d-debugging-performance.md) | 黑屏排查决策树、glGetError、调试工具、性能优化清单 |
+
+> **推荐学习方式**：01~06 先建立概念 → 07~09 动手写 → 10~32 按顺序推进 → 遇到平台问题查附录 A/B，写 shader 查附录 C，优化查附录 D。
+
 ## 配套 App
 
 所有概念都可以在配套 App（本仓库源码编译）中交互验证：每个界面 = 一个章节，含可交互演示、技术讲解、语法高亮的代码示例和实时参数调节。
+
+## Windows C++ 版
+
+每章的 C++ 移植代码在仓库 [win32/](../win32/README.md) 目录，可在 Windows 上直接编译运行（零第三方依赖），与 App 内 Demo 一一对应。
