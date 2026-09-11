@@ -13,29 +13,37 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 20 · 帧缓冲对象 FBO 与渲染到纹理（Render To Texture）。
+ * 29 · 帧缓冲与渲染到纹理（RTT）＋ 三种附件可视化
+ *
+ * Pass1 把场景画进 FBO：颜色 → 颜色纹理，深度 → 深度纹理（不再是 RBO，可采样！）
+ * Pass2 切换查看：附件0（彩色画面）/ 深度附件（灰度=离相机的距离）
+ * —— 让你亲眼看到"深度缓冲里到底存了什么"。
  */
 public class D20FboRtt extends BaseDemoEngine {
 
     public static final String DESCRIPTION = ""
-            + "▍默认帧缓冲 vs FBO\n"
-            + "eglCreateWindowSurface 得到的是\"默认帧缓冲\"（屏幕）。"
-            + "FBO 让我们自建渲染目标：颜色贴到纹理、深度贴到 renderbuffer，"
-            + "渲染结果直接变成一张可采样的纹理 —— 后处理、镜子、阴影图、延迟渲染的地基。\n\n"
-            + "▍创建四步（本例 setupFramebuffer）\n"
-            + "1) glGenFramebuffers + glBindFramebuffer(GL_FRAMEBUFFER, fbo)；\n"
-            + "2) 颜色附件：普通纹理 glFramebufferTexture2D(GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0)；\n"
-            + "3) 深度附件：glGenRenderbuffers → glRenderbufferStorage(GL_DEPTH_COMPONENT24) → "
-            + "glFramebufferRenderbuffer(GL_DEPTH_ATTACHMENT)；\n"
-            + "4) glCheckFramebufferStatus 必须等于 GL_FRAMEBUFFER_COMPLETE 才能用。\n\n"
-            + "▍完整性规则（驱动检查表）\n"
-            + "所有启用附件格式互相兼容、至少挂一个颜色/深度/模板、宽高一致；"
-            + "GL_FRAMEBUFFER_INCOMPLETE_* 错误码告诉你缺了什么。"
-            + "切回窗口时记得 glBindFramebuffer(0) + glViewport(窗口尺寸)。\n\n"
-            + "▍深度可视化（本例开关）\n"
-            + "深度存在渲染时的 DEPTH_COMPONENT24 里无法直接采样（ES3 采样深度需 sampler2DShadow"
-            + " 或 EXT），所以 FS 里用 gl_FragCoord.z 反推线性深度展示非线性分布 —— "
-            + "可以看到近处梯度极缓、远处陡然压缩（07 课讲过的 1/z 曲线）。";
+            + "▍帧缓冲的三种附件（每个像素三层记录）\n"
+            + "① 颜色附件 COLOR_ATTACHMENT0 —— 片元着色器的输出，最终显示的画面；\n"
+            + "② 深度附件 DEPTH_ATTACHMENT —— 每像素一个\"离相机距离\"，深度测试的判决依据；\n"
+            + "③ 模板附件 STENCIL_ATTACHMENT —— 8位手工掩码，镂空判决（第 16 章）；\n"
+            + "  ES3 还有 DEPTH24_STENCIL8 把②③打包在同一块存储。\n\n"
+            + "▍本界面的核心变化：深度附件用的是【深度纹理】\n"
+            + "普通写法深度挂在 renderbuffer（只测试不读取）；本例改挂纹理，"
+            + "于是 Pass2 可以【采样它】——把深度值显示成灰度，亲眼看到：\n"
+            + "· 深度非线性（1/z）：近处渐变丰富，远处骤然压缩；\n"
+            + "· 这也是阴影贴图（Shadow Mapping）的实现基础。\n\n"
+            + "▍创建 FBO 四步\n"
+            + "① glGenFramebuffers + glBindFramebuffer；\n"
+            + "② 颜色附件：纹理 + glFramebufferTexture2D(COLOR_ATTACHMENT0)；\n"
+            + "③ 深度附件：GL_DEPTH_COMPONENT24 纹理 + glFramebufferTexture2D(DEPTH_ATTACHMENT)；\n"
+            + "④ glCheckFramebufferStatus == COMPLETE 才能用。\n\n"
+            + "▍切换到【深度】视图观察\n"
+            + "· 越近越亮、越远越暗（做了 pow(d,8) 对比增强，原始深度挤在接近 1 的区间）；\n"
+            + "· 立方体与地面在深度图里边界清晰——遮挡关系一目了然；\n"
+            + "· 画面边缘（清屏值）= 最远 = 1.0。\n\n"
+            + "▍完整性规则\n"
+            + "所有启用的附件必须尺寸一致、格式可渲染；任何缺失 → FBO 不完整。\n"
+            + "切回屏幕时记得 glBindFramebuffer(0) + glViewport(屏幕尺寸) ——两个都要！";
 
     private static final String SCENE_VS = ""
             + "#version 300 es\n"
@@ -55,16 +63,14 @@ public class D20FboRtt extends BaseDemoEngine {
             + "out vec4 fragColor;\n"
             + "void main() { fragColor = vec4(v_color, 1.0); }\n";
 
-    // 全屏显示 pass：采样 RTT，可选深度可视化
     private static final String DISPLAY_VS = ""
             + "#version 300 es\n"
             + "layout(location=0) in vec3 a_pos;\n"
-            + "layout(location=1) in vec2 a_uv;\n"
+            + "layout(location=2) in vec2 a_uv;\n"
             + "uniform float u_mirror;\n"
             + "uniform float u_zoom;\n"
             + "out vec2 v_uv;\n"
             + "void main() {\n"
-            + "    // zoom<1 时只采样纹理中心区域 -> 内容放大（缩小采样=放大显示）\n"
             + "    vec2 uv = (a_uv - 0.5) * u_zoom + 0.5;\n"
             + "    v_uv = vec2(mix(uv.x, 1.0 - uv.x, u_mirror), uv.y);\n"
             + "    gl_Position = vec4(a_pos, 1.0);\n"
@@ -74,48 +80,35 @@ public class D20FboRtt extends BaseDemoEngine {
             + "#version 300 es\n"
             + "precision mediump float;\n"
             + "in vec2 v_uv;\n"
-            + "uniform sampler2D u_scene;\n"
-            + "uniform float u_depthViz;\n"
-            + "uniform float u_near;\n"
-            + "uniform float u_far;\n"
-            + "uniform float u_hue;\n"
+            + "uniform sampler2D u_colorTex;\n"
+            + "uniform sampler2D u_depthTex;\n"
+            + "uniform int u_view;          // 0=颜色附件 1=深度附件\n"
             + "out vec4 fragColor;\n"
-            + "vec3 hsv2rgb(float h) {\n"
-            + "    float c = 1.0, x = c * (1.0 - abs(mod(h * 6.0, 2.0) - 1.0));\n"
-            + "    vec3 r;\n"
-            + "    if (h < 1.0/6.0) r = vec3(c, x, 0.0);\n"
-            + "    else if (h < 2.0/6.0) r = vec3(x, c, 0.0);\n"
-            + "    else if (h < 3.0/6.0) r = vec3(0.0, c, x);\n"
-            + "    else if (h < 4.0/6.0) r = vec3(0.0, x, c);\n"
-            + "    else if (h < 5.0/6.0) r = vec3(x, 0.0, c);\n"
-            + "    else r = vec3(c, 0.0, x);\n"
-            + "    return r;\n"
-            + "}\n"
             + "void main() {\n"
-            + "    if (u_depthViz > 0.5) {\n"
-            + "        // 注意：颜色附件没有深度。这里用\"渲染时写入深度\"的另一条路太复杂，\n"
-            + "        // 直接以亮度近似展示非线性：亮度高=近（演示 1/z 分布用专门 pass，此处示意）\n"
-            + "        float lum = dot(texture(u_scene, v_uv).rgb, vec3(0.299, 0.587, 0.114));\n"
-            + "        fragColor = vec4(hsv2rgb(lum * u_hue), 1.0);\n"
+            + "    if (u_view == 1) {\n"
+            + "        // 直接采样深度纹理：r 通道 = 深度值（非线性 1/z）\n"
+            + "        float d = texture(u_depthTex, v_uv).r;\n"
+            + "        fragColor = vec4(vec3(pow(d, 8.0)), 1.0);  // pow 增强近处对比\n"
             + "    } else {\n"
-            + "        vec3 c = texture(u_scene, v_uv).rgb;\n"
-            + "        fragColor = vec4(c, 1.0);\n"
+            + "        fragColor = texture(u_colorTex, v_uv);\n"
             + "    }\n"
             + "}\n";
 
+    private static final String KEY_VIEW = "view";
     private static final String KEY_ZOOM = "zoom";
     private static final String KEY_MIRROR = "mirror";
-    private static final String KEY_DEPTH = "depth";
-    private static final String KEY_HUE = "hue";
     private static final String KEY_SPEED = "speed";
+
+    private static final String[] VIEW_LABELS = {"附件0 · 颜色（画面）", "附件 · 深度（灰度=距离）"};
 
     private ShaderProgram mSceneProgram;
     private ShaderProgram mDisplayProgram;
-    private Mesh mCube;
+    private Mesh mCubes;
+    private Mesh mGround;
     private Mesh mFullScreenQuad;
     private int mFBO;
     private int mColorTex;
-    private int mDepthRBO;
+    private int mDepthTex;          // 深度附件改用纹理：可采样！
     private static final int RT_SIZE = 1024;
     private final float[] mProj = new float[16];
     private final float[] mView = new float[16];
@@ -128,6 +121,7 @@ public class D20FboRtt extends BaseDemoEngine {
         mSceneProgram = new ShaderProgram(SCENE_VS, SCENE_FS);
         mDisplayProgram = new ShaderProgram(DISPLAY_VS, DISPLAY_FS);
 
+        // 立方体：pos+color
         GeoGen.GeoData cube = GeoGen.cube();
         int n = cube.positions.length / 3;
         float[] verts = new float[n * 6];
@@ -143,10 +137,13 @@ public class D20FboRtt extends BaseDemoEngine {
             verts[i * 6 + 4] = g;
             verts[i * 6 + 5] = b;
         }
-        mCube = new Mesh.Builder()
+        mCubes = new Mesh.Builder()
                 .addBuffer(verts, new Mesh.Attrib(0, 3), new Mesh.Attrib(1, 3))
                 .setIndices(cube.indices)
                 .build();
+
+        // 地面：pos+color（灰色，让深度图有连续渐变）
+        mGround = makeGroundMesh();
 
         mFullScreenQuad = new Mesh.Builder()
                 .addBuffer(new float[]{
@@ -156,33 +153,52 @@ public class D20FboRtt extends BaseDemoEngine {
                         1, -1, 0, 1, 0,
                         1, 1, 0, 1, 1,
                         -1, 1, 0, 0, 1
-                }, new Mesh.Attrib(0, 3), new Mesh.Attrib(1, 2))
+                }, new Mesh.Attrib(0, 3), new Mesh.Attrib(2, 2))
                 .build();
 
         setupFramebuffer(RT_SIZE);
     }
 
-    /** FBO 创建四步：绑定 → 挂颜色纹理 → 挂深度 RBO → 查完整性。 */
+    private Mesh makeGroundMesh() {
+        float s = 6.0f;
+        float[] g = {
+            -s, -0.5f, -s, 0.35f, 0.4f, 0.45f,
+             s, -0.5f, -s, 0.35f, 0.4f, 0.45f,
+            -s, -0.5f,  s, 0.55f, 0.6f, 0.65f,
+             s, -0.5f, -s, 0.35f, 0.4f, 0.45f,
+             s, -0.5f,  s, 0.55f, 0.6f, 0.65f,
+            -s, -0.5f,  s, 0.55f, 0.6f, 0.65f
+        };
+        return new Mesh.Builder()
+                .addBuffer(g, new Mesh.Attrib(0, 3), new Mesh.Attrib(1, 3))
+                .build();
+    }
+
+    /** FBO 四步：fbo → 颜色纹理附件 → 深度【纹理】附件 → 完整性检查。 */
     private void setupFramebuffer(int size) {
         releaseFramebuffer();
 
+        // 颜色附件：普通 RGBA 纹理
         int[] tex = new int[1];
         GLES30.glGenTextures(1, tex, 0);
         mColorTex = tex[0];
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, mColorTex);
         GLES30.glTexImage2D(GLES30.GL_TEXTURE_2D, 0, GLES30.GL_RGBA,
                 size, size, 0, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, null);
-        // RTT 惯例：CLAMP_TO_EDGE + 无 mipmap（采样坐标永远在 0..1 内）
         com.example.studyopengl.gl.TextureHelper.setParams(
                 GLES30.GL_CLAMP_TO_EDGE, GLES30.GL_CLAMP_TO_EDGE,
                 GLES30.GL_LINEAR, GLES30.GL_LINEAR);
 
-        int[] rbo = new int[1];
-        GLES30.glGenRenderbuffers(1, rbo, 0);
-        mDepthRBO = rbo[0];
-        GLES30.glBindRenderbuffer(GLES30.GL_RENDERBUFFER, mDepthRBO);
-        GLES30.glRenderbufferStorage(GLES30.GL_RENDERBUFFER,
-                GLES30.GL_DEPTH_COMPONENT24, size, size);
+        // 深度附件：深度纹理（ES3 核心能力，可被 FS 采样）
+        int[] dtex = new int[1];
+        GLES30.glGenTextures(1, dtex, 0);
+        mDepthTex = dtex[0];
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, mDepthTex);
+        GLES30.glTexImage2D(GLES30.GL_TEXTURE_2D, 0, GLES30.GL_DEPTH_COMPONENT24,
+                size, size, 0, GLES30.GL_DEPTH_COMPONENT, GLES30.GL_UNSIGNED_INT, null);
+        com.example.studyopengl.gl.TextureHelper.setParams(
+                GLES30.GL_CLAMP_TO_EDGE, GLES30.GL_CLAMP_TO_EDGE,
+                GLES30.GL_LINEAR, GLES30.GL_LINEAR);
 
         int[] fbo = new int[1];
         GLES30.glGenFramebuffers(1, fbo, 0);
@@ -190,8 +206,8 @@ public class D20FboRtt extends BaseDemoEngine {
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, mFBO);
         GLES30.glFramebufferTexture2D(GLES30.GL_FRAMEBUFFER,
                 GLES30.GL_COLOR_ATTACHMENT0, GLES30.GL_TEXTURE_2D, mColorTex, 0);
-        GLES30.glFramebufferRenderbuffer(GLES30.GL_FRAMEBUFFER,
-                GLES30.GL_DEPTH_ATTACHMENT, GLES30.GL_RENDERBUFFER, mDepthRBO);
+        GLES30.glFramebufferTexture2D(GLES30.GL_FRAMEBUFFER,
+                GLES30.GL_DEPTH_ATTACHMENT, GLES30.GL_TEXTURE_2D, mDepthTex, 0);
 
         int status = GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER);
         if (status != GLES30.GL_FRAMEBUFFER_COMPLETE) {
@@ -209,9 +225,9 @@ public class D20FboRtt extends BaseDemoEngine {
             GLES30.glDeleteTextures(1, new int[]{mColorTex}, 0);
             mColorTex = 0;
         }
-        if (mDepthRBO != 0) {
-            GLES30.glDeleteRenderbuffers(1, new int[]{mDepthRBO}, 0);
-            mDepthRBO = 0;
+        if (mDepthTex != 0) {
+            GLES30.glDeleteTextures(1, new int[]{mDepthTex}, 0);
+            mDepthTex = 0;
         }
     }
 
@@ -219,10 +235,10 @@ public class D20FboRtt extends BaseDemoEngine {
     public void onDrawFrame(float deltaTime) {
         mTime += deltaTime * getFloat(KEY_SPEED);
 
-        // ============ Pass 1：渲染到 FBO ============
+        // ============ Pass 1：渲染到 FBO（颜色纹理 + 深度纹理同时产出）============
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, mFBO);
-        GLES30.glViewport(0, 0, RT_SIZE, RT_SIZE); // 视口切到 RTT 尺寸！
-        GLES30.glClearColor(0.09f, 0.1f, 0.14f, 1f);
+        GLES30.glViewport(0, 0, RT_SIZE, RT_SIZE);
+        GLES30.glClearColor(0.0f, 0.0f, 0.0f, 1.0f);   // 清屏深度=最远，颜色=黑
         GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT | GLES30.GL_DEPTH_BUFFER_BIT);
 
         Matrix.setIdentityM(mProj, 0);
@@ -233,42 +249,54 @@ public class D20FboRtt extends BaseDemoEngine {
 
         GLES30.glEnable(GLES30.GL_DEPTH_TEST);
         mSceneProgram.use();
+        
+        float[] mvp = new float[16];
+
+        // 地面（大面积灰色，让深度图有连续渐变）
+        Matrix.setIdentityM(mModel, 0);
+        Matrix.multiplyMM(mvp, 0, pv, 0, mModel, 0);
+        mSceneProgram.setMat4("u_mvp", mvp);
+        mGround.draw(GLES30.GL_TRIANGLES);
+
+        // 四个彩色立方体
         for (int i = 0; i < 4; i++) {
             Matrix.setIdentityM(mModel, 0);
             Matrix.translateM(mModel, 0,
-                    (i % 2 == 0 ? -0.8f : 0.8f), 0.5f, (i < 2 ? -0.8f : 0.8f));
+                    i % 2 == 0 ? -0.8f : 0.8f, 0.5f, i < 2 ? -0.8f : 0.8f);
             Matrix.rotateM(mModel, 0, mTime * 40f + i * 45f, 0.4f, 1, 0.2f);
-            Matrix.multiplyMM(mMvp, 0, pv, 0, mModel, 0);
-            mSceneProgram.setMat4("u_mvp", mMvp);
-            mCube.draw(GLES30.GL_TRIANGLES);
+            Matrix.multiplyMM(mvp, 0, pv, 0, mModel, 0);
+            mSceneProgram.setMat4("u_mvp", mvp);
+            mCubes.draw(GLES30.GL_TRIANGLES);
         }
         GLES30.glDisable(GLES30.GL_DEPTH_TEST);
 
-        // ============ Pass 2：把 RTT 当纹理画到屏幕 ============
-        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0); // 默认帧缓冲
+        // ============ Pass 2：查看某个附件 ============
+        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0);
         GLES30.glViewport(0, 0, mWidth, mHeight);
-        GLES30.glClearColor(0.02f, 0.02f, 0.04f, 1f);
+        GLES30.glClearColor(0.02f, 0.02f, 0.04f, 1.0f);
         GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT);
 
+        int view = getOptionIndex(KEY_VIEW);
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0);
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, mColorTex);
+        GLES30.glActiveTexture(GLES30.GL_TEXTURE1);
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, mDepthTex);
         mDisplayProgram.use();
-        float zoom = getFloat(KEY_ZOOM);
-        mDisplayProgram.set("u_scene", 0);
+        mDisplayProgram.set("u_colorTex", 0);
+        mDisplayProgram.set("u_depthTex", 1);
+        GLES30.glUniform1i(mDisplayProgram.loc("u_view"), view);
         GLES30.glUniform1f(mDisplayProgram.loc("u_mirror"), getBool(KEY_MIRROR) ? 1f : 0f);
-        GLES30.glUniform1f(mDisplayProgram.loc("u_zoom"), zoom);
-        GLES30.glUniform1f(mDisplayProgram.loc("u_depthViz"), getBool(KEY_DEPTH) ? 1f : 0f);
-        GLES30.glUniform1f(mDisplayProgram.loc("u_hue"), 0.3f + getFloat(KEY_HUE));
+        GLES30.glUniform1f(mDisplayProgram.loc("u_zoom"), getFloat(KEY_ZOOM));
         mFullScreenQuad.draw(GLES30.GL_TRIANGLES);
+        GLES30.glActiveTexture(GLES30.GL_TEXTURE0);
     }
 
     @Override
     public List<ParamSpec> getParamSpecs() {
-        ArrayList<ParamSpec> specs = new ArrayList<ParamSpec>();
+        ArrayList<ParamSpec> specs = new ArrayList<>();
+        specs.add(ParamSpec.optionSpec(KEY_VIEW, "查看哪个附件", VIEW_LABELS, 0));
         specs.add(ParamSpec.floatSpec(KEY_ZOOM, "RTT 采样缩放", 0.3f, 1f, 1f));
         specs.add(ParamSpec.boolSpec(KEY_MIRROR, "镜像采样", false));
-        specs.add(ParamSpec.boolSpec(KEY_DEPTH, "亮度伪深度可视化", false));
-        specs.add(ParamSpec.floatSpec(KEY_HUE, "可视化色相", 0f, 1f, 0.3f));
         specs.add(ParamSpec.floatSpec(KEY_SPEED, "旋转速度", 0f, 2f, 0.5f));
         return specs;
     }
@@ -276,7 +304,8 @@ public class D20FboRtt extends BaseDemoEngine {
     @Override
     public void onSurfaceDestroyed() {
         releaseFramebuffer();
-        mCube.dispose();
+        mCubes.dispose();
+        mGround.dispose();
         mFullScreenQuad.dispose();
         mSceneProgram.release();
         mDisplayProgram.release();

@@ -73,7 +73,7 @@ build\study_gl.exe 14     :: 直接运行第 14 章（深度测试）
 | 26 | ch26.cpp | UBO 共享（H 色相、I 强度） |
 | 27 | ch27.cpp | glMapBufferRange 波浪（M 切换、+/− 频率） |
 | 28 | ch28.cpp | Transform Feedback 粒子（G 重力、+/− 数量） |
-| 29 | ch29.cpp | FBO 渲染到纹理（Z 缩放、X 镜像） |
+| 29 | ch29.cpp | FBO 附件可视化：颜色/深度纹理/模板绿洞（1/2/3 切换）|
 | 30 | ch30.cpp | 后处理卷积（1-7 核、+/− 步长、M 混合） |
 | 31 | ch31.cpp | MSAA（S 切采样数，W 线框） |
 | 32 | ch32.cpp | MRT 双输出（V 切换查看） |
