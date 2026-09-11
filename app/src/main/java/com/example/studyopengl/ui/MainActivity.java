@@ -23,12 +23,15 @@ public class MainActivity extends Activity {
 
         final ArrayList<DemoInfo> demos = DemoCatalog.all();
         ListView listView = (ListView) findViewById(R.id.demo_list);
-        listView.setAdapter(new DemoAdapter(demos, getLayoutInflater()));
+        final DemoAdapter adapter = new DemoAdapter(demos, getLayoutInflater());
+        listView.setAdapter(adapter);
         listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                DemoInfo info = adapter.itemAt(position); // 列表含阶段标题行，需换算
+                if (info == null) return;
                 Intent intent = new Intent(MainActivity.this, DemoActivity.class);
-                intent.putExtra(DemoActivity.EXTRA_DEMO_ID, demos.get(position).id);
+                intent.putExtra(DemoActivity.EXTRA_DEMO_ID, info.id);
                 startActivity(intent);
             }
         });

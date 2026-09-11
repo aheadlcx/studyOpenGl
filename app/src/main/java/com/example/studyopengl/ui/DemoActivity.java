@@ -119,6 +119,12 @@ public class DemoActivity extends Activity {
         mFpsView = (TextView) findViewById(R.id.tv_fps);
         mGlInfoView = (TextView) findViewById(R.id.tv_glinfo);
 
+        // 新手提示：一行话讲清"这个界面怎么玩"
+        TextView hintView = (TextView) findViewById(R.id.tv_hint);
+        hintView.setText(mInfo.code != null
+                ? "💡 与画面实时交互（点按 / 拖动 / 按键）；点画面元素会跳到【代码】页签对应段落"
+                : "💡 拖动下方参数滑条，画面实时变化；完整图文原理见仓库 docs/ 目录对应章节");
+
         // 4. 页签 + 代码示例
         mDetailView = detailView;
         mCodeView = (TextView) findViewById(R.id.tv_code);
