@@ -29,6 +29,10 @@ minSdk 21 · targetSdk 33 · AGP 7.4.2 · Gradle 8.5 · Java sourceCompatibility
 # 或直接用 Android Studio 打开本目录 Sync 运行
 ```
 
+**发布 APK**：仓库根目录的 `deploy_apk.bat` 会编译 APK 并按
+`StudyOpenGL-OpenGL_ES3.0_Lab-debug_月日_时分秒.apk` 命名拷贝到共享目录
+（默认 `\\192.168.0.104\work\demo\apk`，可传参数指定目标目录）。
+
 设备要求：Android 5.0+，且支持 OpenGL ES 3.0（Manifest 已声明 `glEsVersion="0x00030000"`）。
 
 ## 需求对照
