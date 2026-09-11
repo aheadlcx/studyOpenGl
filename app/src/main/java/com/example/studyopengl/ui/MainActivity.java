@@ -30,8 +30,16 @@ public class MainActivity extends Activity {
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 DemoInfo info = adapter.itemAt(position); // 列表含阶段标题行，需换算
                 if (info == null) return;
-                Intent intent = new Intent(MainActivity.this, DemoActivity.class);
-                intent.putExtra(DemoActivity.EXTRA_DEMO_ID, info.id);
+                Intent intent;
+                if (info.subs != null && !info.subs.isEmpty()) {
+                    // 二级界面：章节目录页（列出全部微知识点小节）
+                    intent = new Intent(MainActivity.this, ChapterActivity.class);
+                    intent.putExtra(ChapterActivity.EXTRA_CHAPTER_ID, info.id);
+                } else {
+                    // 单屏章节：直接进入演示
+                    intent = new Intent(MainActivity.this, DemoActivity.class);
+                    intent.putExtra(DemoActivity.EXTRA_DEMO_ID, info.id);
+                }
                 startActivity(intent);
             }
         });

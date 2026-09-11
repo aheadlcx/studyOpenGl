@@ -34,6 +34,7 @@ import java.util.Locale;
 public class DemoActivity extends Activity {
 
     public static final String EXTRA_DEMO_ID = "demo_id";
+    public static final String EXTRA_SUB_ID = "sub_id";
 
     private GLThread mGLThread;
     private DemoEngine mEngine;
@@ -50,6 +51,7 @@ public class DemoActivity extends Activity {
     private View mParamsHeader;
     private View mParamContainer;
     private int mCurTab = 0;
+    private SubDemo mSub;
 
     private final Handler mUiHandler = new Handler();
     private final Runnable mFpsUpdater = new Runnable() {
@@ -74,29 +76,39 @@ public class DemoActivity extends Activity {
             return;
         }
 
-        // 1. 创建引擎并注入 GL 线程
+        // 1. 创建引擎（应用小节锁参数：值固定，UI 隐藏对应控件）
         mEngine = mInfo.factory.create();
+        BaseDemoEngine engine = null;
         if (mEngine instanceof BaseDemoEngine) {
-            ((BaseDemoEngine) mEngine).initParams();
-            ((BaseDemoEngine) mEngine).attachCodeSectionListener(
-                    new BaseDemoEngine.OnCodeSectionListener() {
+            engine = (BaseDemoEngine) mEngine;
+            engine.initParams();
+            mSub = findSub(mInfo, getIntent().getStringExtra(EXTRA_SUB_ID));
+            if (mSub != null) {
+                for (int i = 0; i < mSub.lockKeys.length; i++) {
+                    engine.lockParam(mSub.lockKeys[i], mSub.lockValues[i]);
+                }
+            }
+            engine.attachCodeSectionListener(new BaseDemoEngine.OnCodeSectionListener() {
+                @Override
+                public void onCodeSection(final int section) {
+                    runOnUiThread(new Runnable() {
                         @Override
-                        public void onCodeSection(final int section) {
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    showTab(1);
-                                    scrollToCodeSection(section);
-                                }
-                            });
+                        public void run() {
+                            showTab(1);
+                            scrollToCodeSection(section);
                         }
                     });
+                }
+            });
         }
 
         // 2. 创建自建 GL 线程，绑定到 SurfaceView
         RenderSurface surface = (RenderSurface) findViewById(R.id.render_surface);
         mGLThread = new GLThread();
         mGLThread.setEngine(mEngine);
+        if (engine != null) {
+            engine.attachPoster(mGLThread);   // 关键：参数变更回调由此投递到 GL 线程
+        }
         mGLThread.setGlInfoListener(new GLThread.GlInfoListener() {
             @Override
             public void onGlInfo(final String info) {
@@ -112,10 +124,12 @@ public class DemoActivity extends Activity {
 
         // 3. 填充标题、讲解与参数面板
         TextView titleView = (TextView) findViewById(R.id.tv_demo_title);
-        titleView.setText(String.format(Locale.US, "%02d · %s",
-                mInfo.index, mInfo.title));
+        String title = String.format(Locale.US, "%02d · %s", mInfo.index, mInfo.title);
+        if (mSub != null) title += " · " + mSub.title;
+        titleView.setText(title);
         TextView detailView = (TextView) findViewById(R.id.tv_detail);
-        detailView.setText(mInfo.detail);
+        detailView.setText(mSub != null && mSub.detail != null
+                ? mSub.detail : mInfo.detail);
         mFpsView = (TextView) findViewById(R.id.tv_fps);
         mGlInfoView = (TextView) findViewById(R.id.tv_glinfo);
 
@@ -159,8 +173,12 @@ public class DemoActivity extends Activity {
 
         LinearLayout paramContainer = (LinearLayout) findViewById(R.id.param_container);
         List<ParamSpec> specs = mEngine.getParamSpecs();
+        BaseDemoEngine bEngine = mEngine instanceof BaseDemoEngine
+                ? (BaseDemoEngine) mEngine : null;
         if (specs != null) {
             for (ParamSpec spec : specs) {
+                // 小节锁定的参数不生成控件（值固定，教学焦点唯一）
+                if (bEngine != null && bEngine.isLocked(spec.key)) continue;
                 paramContainer.addView(createParamRow(spec));
             }
         }
@@ -375,6 +393,15 @@ public class DemoActivity extends Activity {
 
     private int dp(int value) {
         return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    /** 在章节的小节列表里找指定 id 的小节。 */
+    private static SubDemo findSub(DemoInfo info, String subId) {
+        if (info == null || info.subs == null || subId == null) return null;
+        for (SubDemo s : info.subs) {
+            if (s.id.equals(subId)) return s;
+        }
+        return null;
     }
 
     // ==================== 生命周期：驱动 GLThread ====================

@@ -164,10 +164,11 @@ public class D31FragmentShader extends BaseDemoEngine {
     private int mTouchMode = -1;   // 点屏幕切换的模式（-1=跟随参数）
     private float mTime;
 
-    /** 点屏幕左半=上一模式，右半=下一模式，并跳到对应代码段。 */
+    /** 点屏幕左半=上一模式，右半=下一模式，并跳到对应代码段。小节锁定时不响应。 */
     @Override
     public void onTouch(int action, float x, float y) {
         if (action != android.view.MotionEvent.ACTION_DOWN) return;
+        if (isLocked(KEY_MODE)) return;   // 小节已锁定模式
         int cur = mTouchMode >= 0 ? mTouchMode : getOptionIndex(KEY_MODE);
         int next;
         if (x < mWidth / 2f) {
@@ -219,7 +220,9 @@ public class D31FragmentShader extends BaseDemoEngine {
 
         mProg.use();
         mProg.setMat4("u_mvp", mvp);
-        mProg.set("u_mode", mTouchMode >= 0 ? mTouchMode : getOptionIndex(KEY_MODE));
+        mProg.set("u_mode", isLocked(KEY_MODE)
+                ? getOptionIndex(KEY_MODE)
+                : (mTouchMode >= 0 ? mTouchMode : getOptionIndex(KEY_MODE)));
         mProg.set("u_density", getFloat(KEY_DENSITY));
         mProg.set("u_time", mTime);
         mQuad.draw(GLES30.GL_TRIANGLES);

@@ -30,12 +30,28 @@ public abstract class BaseDemoEngine implements DemoEngine {
 
     private final ConcurrentHashMap<String, Object> mValues =
             new ConcurrentHashMap<String, Object>();
+    private final java.util.Set<String> mLockedKeys =
+            java.util.Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
     private GLTaskPoster mPoster;
     private volatile OnCodeSectionListener mCodeListener;
 
     /** DemoActivity 创建引擎后立即调用。 */
     public final void attachPoster(GLTaskPoster poster) {
         mPoster = poster;
+    }
+
+    /**
+     * 锁定一个参数（小节界面用）：值固定为 value，UI 不再显示该滑条/开关。
+     * "一个界面只教一个知识点"——其余参数全部锁成合适的值。
+     */
+    public final void lockParam(String key, Object value) {
+        mLockedKeys.add(key);
+        mValues.put(key, value);
+    }
+
+    /** 该参数是否被小节锁定（UI 据此隐藏控件，交互逻辑据此跳过覆盖）。 */
+    public final boolean isLocked(String key) {
+        return mLockedKeys.contains(key);
     }
 
     /** DemoActivity 注入代码跳转回调（引擎可在 GL 线程直接调 fireCodeSection）。 */
