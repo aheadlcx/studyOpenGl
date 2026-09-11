@@ -83,6 +83,19 @@
 | 31 | [msaa.md](31-msaa.md) | 多重采样 MSAA |
 | 32 | [mrt.md](32-mrt.md) | 多渲染目标 MRT |
 
+### 第 8 阶段 · 进阶补充篇（33~40，常用但常被教程遗漏的知识）
+
+| 章 | 文档 | 内容 |
+|---|---|---|
+| 33 | [compressed-textures.md](33-compressed-textures.md) | ETC2 压缩纹理：显存/带宽省 4~8 倍（Android 刚需） |
+| 34 | [sampler-objects.md](34-sampler-objects.md) | 采样器对象：纹理与采样状态分离 |
+| 35 | [fence-sync.md](35-fence-sync.md) | Fence 同步：CPU/GPU 异步协作 |
+| 36 | [pbo.md](36-pbo.md) | PBO：纹理上传/下载异步化（双缓冲环） |
+| 37 | [gamma-hdr.md](37-gamma-hdr.md) | γ 校正、sRGB 与 HDR（RGBA16F） |
+| 38 | [shadow-mapping.md](38-shadow-mapping.md) | 阴影贴图：两 pass + bias + PCF |
+| 39 | [hierarchy-billboard.md](39-hierarchy-billboard.md) | 层次变换（父子）+ Billboard + 文字渲染 |
+| 40 | [advanced-roadmap.md](40-advanced-roadmap.md) | OBJ 模型加载、Program Binary、遮挡查询、进阶路线图 |
+
 ### 附录（学完 32 章后按需查阅）
 
 | 文档 | 内容 |
