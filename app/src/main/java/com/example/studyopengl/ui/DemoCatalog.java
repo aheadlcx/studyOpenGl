@@ -32,6 +32,7 @@ import com.example.studyopengl.demos.D29VertexShaderSpaces;
 import com.example.studyopengl.demos.D30Rasterizer;
 import com.example.studyopengl.demos.D31FragmentShader;
 import com.example.studyopengl.demos.D32TestsAndSwap;
+import com.example.studyopengl.demos.D41DebugShowcase;
 
 import java.util.ArrayList;
 
@@ -405,6 +406,22 @@ public final class DemoCatalog {
             }
         }));
 
+        list.add(new DemoInfo(33, "debug_showcase", "综合实战·调试工坊", "综合实战",
+                "渲染六面不同贴图的立方体：6 个技术节点逐个搭建，合成完整效果",
+                D41DebugShowcase.DESCRIPTION,
+                null,
+                subs(
+                    sub("n1", "节点1 · UV 与顶点数据", "uv 梯度贴图验证每个面的顶点/uv 朝向", null, "node", 0),
+                    sub("n2", "节点2 · 六面六纹理", "逐面绑定纹理绘制（6 次 draw）", null, "node", 1),
+                    sub("n3", "节点3 · 纹理数组版", "TEXTURE_2D_ARRAY 一次 draw 六面", null, "node", 2),
+                    sub("n4", "节点4 · 光照与法线", "Phong 打光检验法线方向", null, "node", 3),
+                    sub("n5", "节点5 · 深度与绕序检查", "线框叠加 + 半透明内芯", null, "node", 4),
+                    sub("n6", "节点6 · 完整组合", "纹理+光照+旋转+地面", null, "node", 5)),
+                new DemoInfo.Factory() {
+            public com.example.studyopengl.engine.DemoEngine create() {
+                return new D41DebugShowcase();
+            }
+        }));
         return list;
     }
 

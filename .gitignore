@@ -15,3 +15,4 @@ captures/
 
 # Logs / temp
 *.log
+build_log.txt

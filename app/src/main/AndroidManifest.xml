@@ -26,7 +26,7 @@
         <!-- 二级界面：章节目录页（列出章节内全部微知识点小节） -->
         <activity
             android:name=".ui.ChapterActivity"
-            android:exported="false" />
+            android:exported="true" />
 
         <!-- 需求 5/6/7：单独的技术演示界面（含参数面板与技术讲解） -->
         <activity
