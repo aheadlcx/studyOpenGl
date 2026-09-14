@@ -33,6 +33,11 @@
             android:name=".ui.DemoActivity"
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize"
             android:exported="true" />
+
+        <!-- 术语速查：新手专用的"说人话"词典 -->
+        <activity
+            android:name=".ui.GlossaryActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

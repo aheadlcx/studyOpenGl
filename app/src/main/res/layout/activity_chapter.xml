@@ -38,6 +38,17 @@
             android:textColor="@color/text_primary"
             android:textSize="16sp"
             android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btn_next"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?android:attr/selectableItemBackground"
+            android:padding="8dp"
+            android:text="@string/next_chapter"
+            android:textColor="@color/accent"
+            android:textSize="14sp"
+            android:textStyle="bold" />
     </LinearLayout>
 
     <ScrollView

@@ -1,6 +1,7 @@
 package com.example.studyopengl.ui;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.Gravity;
@@ -39,6 +40,7 @@ public class DemoActivity extends Activity {
     private GLThread mGLThread;
     private DemoEngine mEngine;
     private DemoInfo mInfo;
+    private TextView mErrorView;
 
     private TextView mFpsView;
     private TextView mGlInfoView;
@@ -120,6 +122,29 @@ public class DemoActivity extends Activity {
                 });
             }
         });
+        // 引擎抛异常（最常见：着色器编译失败）直接显示到画面上，而不是只有 logcat 里的黑屏
+        mErrorView = (TextView) findViewById(R.id.tv_error);
+        mErrorView.setMovementMethod(new android.text.method.ScrollingMovementMethod());
+        mErrorView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                mErrorView.setVisibility(View.GONE);
+            }
+        });
+        mGLThread.setErrorListener(new GLThread.ErrorListener() {
+            @Override
+            public void onEngineError(final String msg) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        mErrorView.setText("⚠️ " + msg
+                                + "\n\n——排查提示：新手九成是着色器源码写错，"
+                                + "日志里的 ERROR: 0:行号 会指出位置，对照【代码】页签修复即可。点此横幅收起。");
+                        mErrorView.setVisibility(View.VISIBLE);
+                    }
+                });
+            }
+        });
         surface.setGLThread(mGLThread);
 
         // 3. 填充标题、讲解与参数面板
@@ -190,6 +215,19 @@ public class DemoActivity extends Activity {
                 finish();
             }
         });
+
+        // 学完本章一键到下一章（学习路线 = 目录顺序）
+        DemoInfo next = DemoCatalog.nextOf(mInfo.id);
+        if (next == null) {
+            findViewById(R.id.btn_next).setVisibility(View.GONE);
+        } else {
+            findViewById(R.id.btn_next).setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    openChapter(DemoCatalog.nextOf(mInfo.id));
+                }
+            });
+        }
 
         mPanelScroll = findViewById(R.id.panel_scroll);
         View toggle = findViewById(R.id.btn_toggle);
@@ -393,6 +431,21 @@ public class DemoActivity extends Activity {
 
     private int dp(int value) {
         return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    /** 打开目录顺序上的另一章：有小节进章节目录页，没有直接进演示页。 */
+    private void openChapter(DemoInfo info) {
+        if (info == null) return;
+        Intent it;
+        if (info.subs != null && !info.subs.isEmpty()) {
+            it = new Intent(this, ChapterActivity.class);
+            it.putExtra(ChapterActivity.EXTRA_CHAPTER_ID, info.id);
+        } else {
+            it = new Intent(this, DemoActivity.class);
+            it.putExtra(EXTRA_DEMO_ID, info.id);
+        }
+        startActivity(it);
+        finish();
     }
 
     /** 在章节的小节列表里找指定 id 的小节。 */

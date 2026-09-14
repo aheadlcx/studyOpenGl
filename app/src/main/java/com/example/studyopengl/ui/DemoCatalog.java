@@ -434,4 +434,15 @@ public final class DemoCatalog {
         }
         return null;
     }
+
+    /** 学习路线上的下一章（列表顺序即难度顺序）；最后一章返回 null。 */
+    public static DemoInfo nextOf(String id) {
+        ArrayList<DemoInfo> list = all();
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i).id.equals(id)) {
+                return i + 1 < list.size() ? list.get(i + 1) : null;
+            }
+        }
+        return null;
+    }
 }

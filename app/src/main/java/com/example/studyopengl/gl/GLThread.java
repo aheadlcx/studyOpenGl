@@ -42,6 +42,11 @@ public class GLThread extends Thread implements BaseDemoEngine.GLTaskPoster {
         void onGlInfo(String info);
     }
 
+    /** 引擎初始化/渲染抛异常时回调（仍是 GL 线程），UI 层据此把错误显示到画面上。 */
+    public interface ErrorListener {
+        void onEngineError(String message);
+    }
+
     private static final int MSG_SURFACE_AVAILABLE = 1;
     private static final int MSG_SURFACE_CHANGED = 2;
     private static final int MSG_SURFACE_DESTROYED = 3;
@@ -65,6 +70,8 @@ public class GLThread extends Thread implements BaseDemoEngine.GLTaskPoster {
     private EGLSurface mEglSurface;
     private volatile DemoEngine mEngine;
     private volatile GlInfoListener mGlInfoListener;
+    private volatile ErrorListener mErrorListener;
+    private volatile String mLastError; // 同一个错误每帧都抛，只向 UI 报一次
 
     private boolean mSurfaceReady;
     private volatile boolean mPaused;
@@ -129,6 +136,21 @@ public class GLThread extends Thread implements BaseDemoEngine.GLTaskPoster {
 
     public void setGlInfoListener(GlInfoListener listener) {
         mGlInfoListener = listener;
+    }
+
+    public void setErrorListener(ErrorListener listener) {
+        mErrorListener = listener;
+    }
+
+    /** 把引擎异常整理成"人话 + 关键日志"报给 UI；同一错误只报一次，避免每帧刷屏。 */
+    private void notifyError(String where, Throwable t) {
+        ErrorListener l = mErrorListener;
+        if (l == null) return;
+        String msg = t.getMessage() != null ? t.getMessage() : t.toString();
+        String text = "【" + where + "】" + t.getClass().getSimpleName() + "：\n" + msg;
+        if (text.equals(mLastError)) return;
+        mLastError = text;
+        l.onEngineError(text);
     }
 
     /** SurfaceHolder.surfaceCreated 回调转发。 */
@@ -252,6 +274,7 @@ public class GLThread extends Thread implements BaseDemoEngine.GLTaskPoster {
             mEngine.onDrawFrame(seconds);
         } catch (Throwable t) {
             Log.e(TAG, "onDrawFrame 异常", t);
+            notifyError("渲染中出错", t);
         }
 
         // 前后缓冲交换；返回 false 说明窗口表面已失效，等待新的 surfaceCreated
@@ -313,6 +336,7 @@ public class GLThread extends Thread implements BaseDemoEngine.GLTaskPoster {
             scheduleFrame();
         } catch (RuntimeException e) {
             Log.e(TAG, "初始化 EGL 失败", e);
+            notifyError("初始化失败（多半是着色器编译/链接没过）", e);
         }
     }
 

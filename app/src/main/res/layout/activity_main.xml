@@ -27,6 +27,23 @@
         android:textColor="@color/text_secondary"
         android:textSize="12sp" />
 
+    <!-- 新手工具入口：术语速查（学章节时随时回来查词） -->
+    <TextView
+        android:id="@+id/btn_glossary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="20dp"
+        android:layout_marginRight="20dp"
+        android:layout_marginBottom="10dp"
+        android:background="@drawable/bg_panel"
+        android:clickable="true"
+        android:focusable="true"
+        android:padding="10dp"
+        android:text="📖 术语速查 · VBO / uniform / NDC…说人话词典（点我）"
+        android:textColor="@color/accent"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+
     <View
         android:layout_width="match_parent"
         android:layout_height="1px"

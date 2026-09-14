@@ -11,6 +11,7 @@ import com.example.studyopengl.R;
 
 import java.util.ArrayList;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * 列表适配器：按 9 个难度阶段分组，组间插入阶段标题行，
@@ -36,10 +37,12 @@ public class DemoAdapter extends BaseAdapter {
     private final ArrayList<Object> mDisplay = new ArrayList<>();
     private final ArrayList<DemoInfo> mItems;
     private final LayoutInflater mInflater;
+    private Set<String> mVisited; // 已学章节 id（进入过即算）
 
-    public DemoAdapter(ArrayList<DemoInfo> items, LayoutInflater inflater) {
+    public DemoAdapter(ArrayList<DemoInfo> items, LayoutInflater inflater, Set<String> visited) {
         mItems = items;
         mInflater = inflater;
+        mVisited = visited;
         String lastCategory = null;
         for (DemoInfo info : items) {
             if (!info.category.equals(lastCategory)) {
@@ -124,10 +127,19 @@ public class DemoAdapter extends BaseAdapter {
         TextView index = (TextView) view.findViewById(R.id.tv_index);
         TextView title = (TextView) view.findViewById(R.id.tv_title);
         TextView brief = (TextView) view.findViewById(R.id.tv_brief);
-        index.setText(String.format(Locale.US, "%02d", info.index));
+        // 已学章节：编号换成绿✓，一眼看出学习进度
+        boolean visited = mVisited != null && mVisited.contains(info.id);
+        index.setText(visited ? "✓" : String.format(Locale.US, "%02d", info.index));
+        index.setTextColor(visited ? 0xFF66BB6A
+                : view.getResources().getColor(R.color.accent));
         title.setText(info.title);
         brief.setText(String.format(Locale.US, "%s", info.brief));
         return view;
+    }
+
+    /** onResume 回来时用最新进度替换（MainActivity 负责调 + notifyDataSetChanged）。 */
+    public void resetVisited(Set<String> visited) {
+        mVisited = visited;
     }
 
     private int dp(int v) {

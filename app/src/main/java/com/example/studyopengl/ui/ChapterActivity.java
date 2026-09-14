@@ -65,6 +65,23 @@ public class ChapterActivity extends Activity {
                 finish();
             }
         });
+
+        // 「下章 ›」：学完本章一键进入学习路线的下一章
+        TextView next = (TextView) findViewById(R.id.btn_next);
+        final DemoInfo nextInfo = DemoCatalog.nextOf(mInfo.id);
+        if (nextInfo == null) {
+            next.setVisibility(View.GONE);
+        } else {
+            next.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    Intent it = new Intent(ChapterActivity.this, ChapterActivity.class);
+                    it.putExtra(EXTRA_CHAPTER_ID, nextInfo.id);
+                    startActivity(it);
+                    finish();
+                }
+            });
+        }
     }
 
     private static class SubAdapter extends BaseAdapter {
