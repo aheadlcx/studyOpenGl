@@ -96,6 +96,12 @@
 | 39 | [hierarchy-billboard.md](39-hierarchy-billboard.md) | 层次变换（父子）+ Billboard + 文字渲染 |
 | 40 | [advanced-roadmap.md](40-advanced-roadmap.md) | OBJ 模型加载、Program Binary、遮挡查询、进阶路线图 |
 
+### 实战篇（41+，把知识点串成真实场景）
+
+| 章 | 文档 | 内容 |
+|---|---|---|
+| 41 | [live-streaming-gl.md](41-live-streaming-gl.md) | 直播场景 GL 知识地图：OES 相机纹理 → 美颜/调色 → 绿幕虚拟背景 → 水印/画中画 → MediaCodec 推流（对应 App 第 34 项「直播预览实战」） |
+
 ### 附录（学完 32 章后按需查阅）
 
 | 文档 | 内容 |

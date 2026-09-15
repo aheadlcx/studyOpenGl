@@ -39,7 +39,15 @@ public class D41DebugShowcase extends BaseDemoEngine {
             + "· 节点4 光照与法线：Phong 打光。若某面亮度不对，就是法线错了——"
             + "光照是法线方向的\"探伤仪\"；\n"
             + "· 节点5 深度与绕序检查：线框叠加看三角形剖分，半透明内芯验证遮挡；\n"
-            + "· 节点6 完整组合：纹理 + 光照 + 旋转 + 地面，最终交付效果。\n\n"
+            + "· 节点6 完整组合：纹理 + 光照 + 旋转 + 地面，最终交付效果。\n"
+            + "· 节点7 MVP 变换探针：M(模型平移/旋转/缩放)、V(相机位置)、"
+            + "P(视场角FOV/近平面) 三层各给滑杆，配合红X绿Y蓝Z世界坐标轴，"
+            + "拖一下就能看清\"这一层矩阵到底动了什么\"——比如 FOV 拉大画面"
+            + "\"广角变形\"、近平面推过物体会把物体\"削掉\"；\n"
+            + "· 节点8 Viewport 探针：glViewport 只是个\"屏幕上的矩形\"，"
+            + "决定 NDC 的 -1..1 映射到哪。拖位置/大小滑杆、开画中画式小窗，"
+            + "再对比\"是否按视口长宽比修正投影\"——不修正画面就会被拉扁"
+            + "（直播推流分辨率适配就是这一招）。\n\n"
             + "▍调试心法（本章真正想教的）\n"
             + "GL 出错不崩溃、只\"画错\"。排查思路是把管线拆开，给每个环节做一个"
             + "\"可视化探针\"：\n"
@@ -47,6 +55,41 @@ public class D41DebugShowcase extends BaseDemoEngine {
             + "· 法线对不对 → 把法线当颜色显示，或用光照照射观察；\n"
             + "· 深度/遮挡对不对 → 关深度、开线框、放半透明参照物对比；\n"
             + "· 纹理对不对 → 给每面贴不同的带编号贴图。";
+
+    /** 节点7 小节讲解：MVP 三层拆开拖。 */
+    public static final String DETAIL_NODE7 = ""
+            + "▍这一节看什么\n"
+            + "MVP 是三个 4x4 矩阵连乘：M 把物体摆进世界，V 把世界搬进相机，"
+            + "P 把三维压成屏幕坐标。拆开拖，才知道每一层\"动的是什么\"。\n\n"
+            + "▍怎么玩\n"
+            + "· M·模型平移X：立方体沿红轴(X)滑动——轴不动物体动，这就是\"模型在世界里的位置\"；\n"
+            + "· M·模型绕Y旋转°：物体自转；\n"
+            + "· M·模型缩放：以原点为中心放大缩小；\n"
+            + "· V·相机X位置：物体不动、\"你绕着它走\"，画面里物体反向移动；\n"
+            + "· P·视场角FOV°：大FOV=广角，边缘拉伸变形；小FOV=长焦拉近；\n"
+            + "· P·近平面距离：近平面推大，物体会被\"削掉一块\"——近处裁剪就是它干的。\n\n"
+            + "▍对应代码\n"
+            + "perspectiveM(FOV, aspect, near, far) 生成 P；setLookAtM( eye, center, up ) 生成 V；"
+            + "setIdentityM→translateM→rotateM→scaleM 生成 M；multiplyMM(P,V) 再乘 M 得 MVP 上传 u_mvp。";
+
+    /** 节点8 小节讲解：glViewport 是屏幕上的矩形。 */
+    public static final String DETAIL_NODE8 = ""
+            + "▍这一节看什么\n"
+            + "glViewport(x, y, w, h) 只是\"屏幕上的一个矩形\"（像素单位，原点在左下角）。"
+            + "NDC 的 -1..1 会被拉伸映射进这个矩形——它不裁剪、不缩放内容，"
+            + "只决定\"画到哪、占多大\"。\n\n"
+            + "▍怎么玩\n"
+            + "· 视口左下角X/Y：矩形挪到任意角落（Y=0 是屏幕底部，GL 的 Y 轴朝上）；\n"
+            + "· 视口宽度/高度：矩形变大变小，立方体跟着被拉伸；\n"
+            + "· 按视口长宽比修正投影：关→画面被拉扁（投影还按全屏比例算）；"
+            + "开→恢复正常（投影 aspect 换成视口的 w/h）。这一开一关就是直播推流的\"画面适配\"。\n\n"
+            + "▍直播里怎么用\n"
+            + "推流分辨率与屏幕比例不一致时的适配 = 换 viewport + 换投影 aspect；"
+            + "小窗模式、连麦布局、画中画 = 多个 viewport 各画各的；"
+            + "再配合 glScissor 还能只清除/重画矩形区域（本节那块亮底就是 scissor 清的）。\n\n"
+            + "▍对应代码\n"
+            + "onDrawFrame 的节点8分支：glScissor 清亮视口区域 → glViewport 切矩形 → "
+            + "perspectiveM 的 aspect 按\"是否修正\"二选一 → 画立方体 → glViewport 还原全屏。";
 
     private static final String TEX_VS = ""
             + "#version 300 es\n"
@@ -124,6 +167,19 @@ public class D41DebugShowcase extends BaseDemoEngine {
     private static final String KEY_NODE = "node";
     private static final String KEY_SPEED = "speed";
 
+    // 节点7（MVP 探针）/ 节点8（Viewport 探针）的交互参数
+    private static final String K_M_ROT = "m_rot";       // 模型绕 Y 旋转角
+    private static final String K_M_TX = "m_tx";         // 模型沿 X 平移
+    private static final String K_M_SCALE = "m_scale";   // 模型整体缩放
+    private static final String K_V_EYE_X = "v_eye_x";   // 相机 X 位置
+    private static final String K_P_FOV = "p_fov";       // 视场角
+    private static final String K_P_NEAR = "p_near";     // 近平面距离
+    private static final String K_VP_X = "vp_x";         // 视口左下角 X（比例）
+    private static final String K_VP_Y = "vp_y";         // 视口左下角 Y（比例）
+    private static final String K_VP_W = "vp_w";         // 视口宽度（比例）
+    private static final String K_VP_H = "vp_h";         // 视口高度（比例）
+    private static final String K_VP_FIX = "vp_fix";     // 是否按视口长宽比修正投影
+
     private ShaderProgram mTexProg;   // 纹理/数组/光照共用（u_node 区分分支）
     private ShaderProgram mFlatProg;  // 棱线/内芯/地面（顶点色）
     private Mesh mCubeLayer;          // pos3+normal3+uv2+layer1（节点1/3/6）
@@ -131,6 +187,7 @@ public class D41DebugShowcase extends BaseDemoEngine {
     private Mesh mEdges;              // 棱线（节点5/6）
     private Mesh mInner;              // 半透明内芯（节点5）
     private Mesh mGround;
+    private Mesh mAxes;               // 世界坐标轴（节点7：红X/绿Y/蓝Z）
     private int mUvTex;
     private final int[] mFaceTex = new int[6];
     private int mArrayTex;
@@ -159,6 +216,7 @@ public class D41DebugShowcase extends BaseDemoEngine {
         buildFaceMeshes();
         buildEdges();
         buildInner();
+        buildAxes();
         mGround = makeGround();
 
         mUvTex = texFromPixels(uvPixels(128), 128);
@@ -257,6 +315,19 @@ public class D41DebugShowcase extends BaseDemoEngine {
             }
         mInner = new Mesh.Builder()
                 .addBuffer(toF(v), new Mesh.Attrib(0, 3), new Mesh.Attrib(1, 4))
+                .build();
+    }
+
+    /** 世界坐标轴：红=X 绿=Y 蓝=Z，配合 MVP 探针直观看"平移/缩放改了什么"。 */
+    private void buildAxes() {
+        float L = 1.8f;
+        float[] v = {
+                0, 0, 0, 1f, 0.25f, 0.25f, 1f,   L, 0, 0, 1f, 0.25f, 0.25f, 1f,
+                0, 0, 0, 0.3f, 1f, 0.3f, 1f,     0, L, 0, 0.3f, 1f, 0.3f, 1f,
+                0, 0, 0, 0.35f, 0.55f, 1f, 1f,   0, 0, L, 0.35f, 0.55f, 1f, 1f,
+        };
+        mAxes = new Mesh.Builder()
+                .addBuffer(v, new Mesh.Attrib(0, 3), new Mesh.Attrib(1, 4))
                 .build();
     }
 
@@ -541,6 +612,74 @@ public class D41DebugShowcase extends BaseDemoEngine {
             mEdges.draw(GLES30.GL_LINES);
         }
 
+        // ═══ 节点7：MVP 变换探针（M/V/P 三层各自可调，轴系做参照物）═══
+        if (node == 7) {
+            float fov = Math.max(10f, getFloat(K_P_FOV));
+            float near = Math.max(0.05f, getFloat(K_P_NEAR));
+            Matrix.setIdentityM(mProj, 0);
+            Matrix.perspectiveM(mProj, 0, fov, (float) mWidth / mHeight, near, 100f);
+            Matrix.setIdentityM(mView, 0);
+            Matrix.setLookAtM(mView, 0, getFloat(K_V_EYE_X), 0.8f, 4.5f, 0, 0, 0, 0, 1, 0);
+            Matrix.multiplyMM(mPv, 0, mProj, 0, mView, 0);
+
+            // M：平移 → 旋转 → 缩放（顺序不同结果不同，这也是教学点）
+            Matrix.setIdentityM(mModel, 0);
+            Matrix.translateM(mModel, 0, getFloat(K_M_TX), 0, 0);
+            Matrix.rotateM(mModel, 0, getFloat(K_M_ROT), 0, 1, 0);
+            float sc = Math.max(0.05f, getFloat(K_M_SCALE));
+            Matrix.scaleM(mModel, 0, sc, sc, sc);
+            mvpOf(); // 内部同时上传 u_model
+            mTexProg.setMat4("u_mvp", mMvp);
+
+            glActiveTexBind(mUvTex);
+            mTexProg.set("u_tex", 0);
+            mTexProg.set("u_node", 1);
+            mCubeLayer.draw(GLES30.GL_TRIANGLES);
+
+            // 世界坐标轴（模型矩阵不参与：轴不动才能对照出模型动了多少）
+            glUseProgramSafe(mFlatProg);
+            Matrix.setIdentityM(mModel, 0);
+            Matrix.multiplyMM(mMvp, 0, mPv, 0, mModel, 0);
+            mFlatProg.setMat4("u_mvp", mMvp);
+            mAxes.draw(GLES30.GL_LINES);
+        }
+
+        // ═══ 节点8：Viewport 探针（glViewport 决定 NDC 映射到屏幕哪块矩形）═══
+        if (node == 8) {
+            int vx = Math.round(getFloat(K_VP_X) * mWidth);
+            int vy = Math.round(getFloat(K_VP_Y) * mHeight);
+            int vw = Math.max(48, Math.round(getFloat(K_VP_W) * mWidth));
+            int vh = Math.max(48, Math.round(getFloat(K_VP_H) * mHeight));
+
+            // 用 scissor 把视口区域清亮一点：不画任何东西也能看清"视口是块矩形"
+            GLES30.glEnable(GLES30.GL_SCISSOR_TEST);
+            GLES30.glScissor(vx, vy, vw, vh);
+            GLES30.glClearColor(0.10f, 0.14f, 0.22f, 1f);
+            GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT);
+            GLES30.glDisable(GLES30.GL_SCISSOR_TEST);
+
+            GLES30.glViewport(vx, vy, vw, vh);
+
+            // 教学点：投影 aspect 若不跟着视口走，画面就会被拉伸变形
+            boolean fixAspect = getBool(K_VP_FIX);
+            float aspect = fixAspect ? (float) vw / vh : (float) mWidth / mHeight;
+            Matrix.setIdentityM(mProj, 0);
+            Matrix.perspectiveM(mProj, 0, 55f, aspect, 0.1f, 30f);
+            Matrix.setIdentityM(mView, 0);
+            Matrix.setLookAtM(mView, 0, 0, 0.8f, 4.6f, 0, 0.1f, 0, 0, 1, 0);
+            Matrix.multiplyMM(mPv, 0, mProj, 0, mView, 0);
+            matSpinOnly(mSpin * 0.4f);
+            mvpOf();
+            mTexProg.setMat4("u_mvp", mMvp);
+
+            glActiveTexBind(mUvTex);
+            mTexProg.set("u_tex", 0);
+            mTexProg.set("u_node", 1);
+            mCubeLayer.draw(GLES30.GL_TRIANGLES);
+
+            GLES30.glViewport(0, 0, mWidth, mHeight); // 还原，避免影响下一帧清屏
+        }
+
         glActiveTexBind(0);
         GLES30.glDisable(GLES30.GL_DEPTH_TEST);
     }
@@ -565,9 +704,24 @@ public class D41DebugShowcase extends BaseDemoEngine {
                 "节点3 · 纹理数组六面",
                 "节点4 · 光照与法线",
                 "节点5 · 深度与绕序检查",
-                "节点6 · 完整组合"
+                "节点6 · 完整组合",
+                "节点7 · MVP 变换探针",
+                "节点8 · Viewport 探针"
         }, 5));
         specs.add(ParamSpec.floatSpec(KEY_SPEED, "旋转速度", 0f, 2f, 0.5f));
+        // ---- 节点7：MVP 三层各自可调 ----
+        specs.add(ParamSpec.floatSpec(K_M_ROT, "M·模型绕Y旋转°", 0f, 360f, 0f));
+        specs.add(ParamSpec.floatSpec(K_M_TX, "M·模型平移X", -1.5f, 1.5f, 0f));
+        specs.add(ParamSpec.floatSpec(K_M_SCALE, "M·模型缩放", 0.2f, 2.0f, 1f));
+        specs.add(ParamSpec.floatSpec(K_V_EYE_X, "V·相机X位置", -2.5f, 2.5f, 0f));
+        specs.add(ParamSpec.floatSpec(K_P_FOV, "P·视场角FOV°", 15f, 110f, 60f));
+        specs.add(ParamSpec.floatSpec(K_P_NEAR, "P·近平面距离", 0.05f, 2.5f, 0.5f));
+        // ---- 节点8：Viewport 位置/大小/长宽比 ----
+        specs.add(ParamSpec.floatSpec(K_VP_X, "视口左下角X(0~1)", 0f, 0.9f, 0f));
+        specs.add(ParamSpec.floatSpec(K_VP_Y, "视口左下角Y(0~1)", 0f, 0.9f, 0f));
+        specs.add(ParamSpec.floatSpec(K_VP_W, "视口宽度(0~1)", 0.1f, 1f, 1f));
+        specs.add(ParamSpec.floatSpec(K_VP_H, "视口高度(0~1)", 0.1f, 1f, 1f));
+        specs.add(ParamSpec.boolSpec(K_VP_FIX, "按视口长宽比修正投影", false));
         return specs;
     }
 
@@ -578,6 +732,7 @@ public class D41DebugShowcase extends BaseDemoEngine {
         if (mEdges != null) mEdges.dispose();
         if (mInner != null) mInner.dispose();
         if (mGround != null) mGround.dispose();
+        if (mAxes != null) mAxes.dispose();
         GLES30.glDeleteTextures(1, new int[]{mUvTex}, 0);
         GLES30.glDeleteTextures(6, mFaceTex, 0);
         GLES30.glDeleteTextures(1, new int[]{mArrayTex}, 0);

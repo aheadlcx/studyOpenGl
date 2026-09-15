@@ -283,8 +283,8 @@ public class GLThread extends Thread implements BaseDemoEngine.GLTaskPoster {
                     + Integer.toHexString(EGL14.eglGetError()));
         }
 
-        // FPS 指数平滑
-        float instant = 1000000000f / Math.max(1L, delta);
+        // FPS 指数平滑（instant 封顶 1000：恢复/首帧 delta 异常小时避免显示"百万FPS"）
+        float instant = Math.min(1000f, 1000000000f / Math.max(1L, delta));
         mFps = mFps == 0f ? instant : mFps * 0.9f + instant * 0.1f;
 
         scheduleFrame(); // 预约下一个 vsync

@@ -33,6 +33,7 @@ import com.example.studyopengl.demos.D30Rasterizer;
 import com.example.studyopengl.demos.D31FragmentShader;
 import com.example.studyopengl.demos.D32TestsAndSwap;
 import com.example.studyopengl.demos.D41DebugShowcase;
+import com.example.studyopengl.demos.D42LivePreview;
 
 import java.util.ArrayList;
 
@@ -51,6 +52,34 @@ import java.util.ArrayList;
  *   29~32 帧缓冲与后处理（RTT/卷积/MSAA/MRT）
  */
 public final class DemoCatalog {
+
+    // ---- 参数锁定表：小节界面只露出该节点的"焦点滑杆"，其余锁默认值隐藏 ----
+    static final Object[] LOCK_MVP = {
+            "m_rot", 0f, "m_tx", 0f, "m_scale", 1f,
+            "v_eye_x", 0f, "p_fov", 60f, "p_near", 0.5f};
+    static final Object[] LOCK_VP = {
+            "vp_x", 0.05f, "vp_y", 0.08f, "vp_w", 0.72f, "vp_h", 0.55f, "vp_fix", true};
+
+    // 直播章（34）：效果组/抠像组/合成组，小节按需解锁
+    static final Object[] LOCK_LIVE_EFFECT = {
+            "fx_mirror", true, "fx_beauty", 0f, "fx_warm", 0f, "fx_sat", 1f};
+    static final Object[] LOCK_LIVE_KEY = {"key_chroma", false, "key_thresh", 0.3f};
+    static final Object[] LOCK_LIVE_COMP = {
+            "fx_badge", false, "pip_on", false,
+            "pip_scale", 0.24f, "pip_x", 0.68f, "pip_y", 0.72f};
+
+    /** 拼接键值对锁定表：数组元素自动展平，支持任意个锁定表 + 尾随散装键值对。 */
+    static Object[] plus(Object... items) {
+        ArrayList<Object> out = new ArrayList<Object>();
+        for (Object o : items) {
+            if (o instanceof Object[]) {
+                for (Object x : (Object[]) o) out.add(x);
+            } else {
+                out.add(o);
+            }
+        }
+        return out.toArray();
+    }
 
     private DemoCatalog() {
     }
@@ -411,15 +440,45 @@ public final class DemoCatalog {
                 D41DebugShowcase.DESCRIPTION,
                 null,
                 subs(
-                    sub("n1", "节点1 · UV 与顶点数据", "uv 梯度贴图验证每个面的顶点/uv 朝向", null, "node", 0),
-                    sub("n2", "节点2 · 六面六纹理", "逐面绑定纹理绘制（6 次 draw）", null, "node", 1),
-                    sub("n3", "节点3 · 纹理数组版", "TEXTURE_2D_ARRAY 一次 draw 六面", null, "node", 2),
-                    sub("n4", "节点4 · 光照与法线", "Phong 打光检验法线方向", null, "node", 3),
-                    sub("n5", "节点5 · 深度与绕序检查", "线框叠加 + 半透明内芯", null, "node", 4),
-                    sub("n6", "节点6 · 完整组合", "纹理+光照+旋转+地面", null, "node", 5)),
+                    sub("n1", "节点1 · UV 与顶点数据", "uv 梯度贴图验证每个面的顶点/uv 朝向", null, plus(LOCK_MVP, LOCK_VP, "node", 0)),
+                    sub("n2", "节点2 · 六面六纹理", "逐面绑定纹理绘制（6 次 draw）", null, plus(LOCK_MVP, LOCK_VP, "node", 1)),
+                    sub("n3", "节点3 · 纹理数组版", "TEXTURE_2D_ARRAY 一次 draw 六面", null, plus(LOCK_MVP, LOCK_VP, "node", 2)),
+                    sub("n4", "节点4 · 光照与法线", "Phong 打光检验法线方向", null, plus(LOCK_MVP, LOCK_VP, "node", 3)),
+                    sub("n5", "节点5 · 深度与绕序检查", "线框叠加 + 半透明内芯", null, plus(LOCK_MVP, LOCK_VP, "node", 4)),
+                    sub("n6", "节点6 · 完整组合", "纹理+光照+旋转+地面", null, plus(LOCK_MVP, LOCK_VP, "node", 5)),
+                    sub("n7", "节点7 · MVP 变换探针",
+                        "M/V/P 三层滑杆 + XYZ 轴，看清每层矩阵动了什么",
+                        D41DebugShowcase.DETAIL_NODE7, plus(LOCK_VP, "speed", 0f, "node", 6)),
+                    sub("n8", "节点8 · Viewport 探针",
+                        "glViewport=屏幕上的矩形：位置/大小/长宽比适配（直播推流同款）",
+                        D41DebugShowcase.DETAIL_NODE8, plus(LOCK_MVP, "speed", 0f, "node", 7))),
                 new DemoInfo.Factory() {
             public com.example.studyopengl.engine.DemoEngine create() {
                 return new D41DebugShowcase();
+            }
+        }));
+
+        list.add(new DemoInfo(34, "live_preview", "直播预览实战", "综合实战",
+                "直播前处理链：视频源→美颜调色→绿幕虚拟背景→水印/画中画",
+                D42LivePreview.DESCRIPTION,
+                null,
+                subs(
+                    sub("n1", "节点1 · 会动的视频源",
+                        "程序化【视频帧】= 真实直播的 OES 相机纹理那一环",
+                        D42LivePreview.DESCRIPTION,
+                        plus(LOCK_LIVE_EFFECT, LOCK_LIVE_KEY, LOCK_LIVE_COMP)),
+                    sub("n2", "节点2 · 美颜与调色",
+                        "镜像/磨皮/色温/饱和度：FBO 前处理链的主干",
+                        D42LivePreview.DETAIL_N2, plus(LOCK_LIVE_KEY, LOCK_LIVE_COMP)),
+                    sub("n3", "节点3 · 绿幕抠像与虚拟背景",
+                        "G 减 R/B 判定 + 容差羽化，抠掉绿幕换演播厅",
+                        D42LivePreview.DETAIL_N3, plus(LOCK_LIVE_EFFECT, LOCK_LIVE_COMP, "key_chroma", true)),
+                    sub("n4", "节点4 · 水印与画中画",
+                        "半透明角标最后画；小窗 = 子矩形二次采样",
+                        D42LivePreview.DETAIL_N4, plus(LOCK_LIVE_EFFECT, LOCK_LIVE_KEY, "fx_mirror", false, "fx_badge", true, "pip_on", true))),
+                new DemoInfo.Factory() {
+            public com.example.studyopengl.engine.DemoEngine create() {
+                return new D42LivePreview();
             }
         }));
         return list;
