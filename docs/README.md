@@ -100,7 +100,7 @@
 
 | 章 | 文档 | 内容 |
 |---|---|---|
-| 41 | [live-streaming-gl.md](41-live-streaming-gl.md) | 直播场景 GL 知识地图：OES 相机纹理 → 美颜/调色 → 绿幕虚拟背景 → 水印/画中画 → MediaCodec 推流（对应 App 第 34 项「直播预览实战」） |
+| 41 | [live-streaming-gl.md](41-live-streaming-gl.md) | 直播场景 GL 知识地图：OES 相机纹理 → 美颜/调色 → 绿幕虚拟背景 → 水印/画中画 → 连麦本地混画 → MediaCodec 推流（对应 App 第 34 项「直播预览实战」） |
 
 ### 附录（学完 32 章后按需查阅）
 

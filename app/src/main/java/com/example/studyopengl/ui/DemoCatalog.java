@@ -67,6 +67,8 @@ public final class DemoCatalog {
     static final Object[] LOCK_LIVE_COMP = {
             "fx_badge", false, "pip_on", false,
             "pip_scale", 0.24f, "pip_x", 0.68f, "pip_y", 0.72f};
+    static final Object[] LOCK_LIVE_CO = {
+            "co_on", false, "co_layout", 1, "co_gap", 0.012f, "co_label", true};
 
     /** 拼接键值对锁定表：数组元素自动展平，支持任意个锁定表 + 尾随散装键值对。 */
     static Object[] plus(Object... items) {
@@ -459,23 +461,28 @@ public final class DemoCatalog {
         }));
 
         list.add(new DemoInfo(34, "live_preview", "直播预览实战", "综合实战",
-                "直播前处理链：视频源→美颜调色→绿幕虚拟背景→水印/画中画",
+                "直播前处理链：视频源→美颜调色→绿幕虚拟背景→水印/画中画→连麦混画",
                 D42LivePreview.DESCRIPTION,
                 null,
                 subs(
                     sub("n1", "节点1 · 会动的视频源",
                         "程序化【视频帧】= 真实直播的 OES 相机纹理那一环",
                         D42LivePreview.DESCRIPTION,
-                        plus(LOCK_LIVE_EFFECT, LOCK_LIVE_KEY, LOCK_LIVE_COMP)),
+                        plus(LOCK_LIVE_EFFECT, LOCK_LIVE_KEY, LOCK_LIVE_COMP, LOCK_LIVE_CO)),
                     sub("n2", "节点2 · 美颜与调色",
                         "镜像/磨皮/色温/饱和度：FBO 前处理链的主干",
-                        D42LivePreview.DETAIL_N2, plus(LOCK_LIVE_KEY, LOCK_LIVE_COMP)),
+                        D42LivePreview.DETAIL_N2, plus(LOCK_LIVE_KEY, LOCK_LIVE_COMP, LOCK_LIVE_CO)),
                     sub("n3", "节点3 · 绿幕抠像与虚拟背景",
                         "G 减 R/B 判定 + 容差羽化，抠掉绿幕换演播厅",
-                        D42LivePreview.DETAIL_N3, plus(LOCK_LIVE_EFFECT, LOCK_LIVE_COMP, "key_chroma", true)),
+                        D42LivePreview.DETAIL_N3, plus(LOCK_LIVE_EFFECT, LOCK_LIVE_COMP, LOCK_LIVE_CO, "key_chroma", true)),
                     sub("n4", "节点4 · 水印与画中画",
                         "半透明角标最后画；小窗 = 子矩形二次采样",
-                        D42LivePreview.DETAIL_N4, plus(LOCK_LIVE_EFFECT, LOCK_LIVE_KEY, "fx_mirror", false, "fx_badge", true, "pip_on", true))),
+                        D42LivePreview.DETAIL_N4, plus(LOCK_LIVE_EFFECT, LOCK_LIVE_KEY, LOCK_LIVE_CO, "fx_mirror", false, "fx_badge", true, "pip_on", true)),
+                    sub("n5", "节点5 · 连麦本地混画",
+                        "主播+观众两路合成一帧：画中画/分屏/宫格布局随时切",
+                        D42LivePreview.DETAIL_N5,
+                        plus("fx_mirror", false, "fx_beauty", 0f, "fx_warm", 0f, "fx_sat", 1f,
+                             LOCK_LIVE_KEY, LOCK_LIVE_COMP, "co_on", true))),
                 new DemoInfo.Factory() {
             public com.example.studyopengl.engine.DemoEngine create() {
                 return new D42LivePreview();

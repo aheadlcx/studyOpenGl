@@ -46,7 +46,9 @@ public class D42LivePreview extends BaseDemoEngine {
             + "· 节点3 绿幕抠像：G 通道显著高于 R/B 判定为绿幕，抠掉换虚拟背景；"
             + "拖容差滑杆看边缘羽化；\n"
             + "· 节点4 水印+画中画：半透明角标叠加(注意画在最后)、子矩形二次采样做小窗"
-            + "——连麦/小窗模式就是再开一个 viewport 画第二路。\n\n"
+            + "——连麦/小窗模式就是再开一个 viewport 画第二路；\n"
+            + "· 节点5 连麦本地混画：主播+观众两路画面按\"矩形表\"本地合成一帧再推流，"
+            + "画中画/左右分屏/上下分屏/一大两小四种布局随时切——切布局只是换一张矩形表。\n\n"
             + "▍为什么每环都用 FBO\n"
             + "效果链要\"上一环的输出当下一环的输入\"，FBO(离屏画布)就是中间寄存地；"
             + "编码器只认最终那份帧缓冲——所以合成永远放最后一步。详见 docs/41 直播知识地图。";
@@ -87,7 +89,27 @@ public class D42LivePreview extends BaseDemoEngine {
             + "并描一圈白边。多路视频(连麦)则是先给每路一个 FBO 纹理，"
             + "最后在同一个帧缓冲里用多个 viewport/偏移各画一次。\n\n"
             + "▍参数对应\n"
-            + "小窗大小/位置滑杆改变的就是那个矩形——拖到右下角就是常见的\"连麦小窗\"布局。";
+            + "小窗大小/位置滑杆改变的就是那个矩形——拖到右下角就是常见的\"连麦小窗\"布局。\n\n"
+            + "▍下一节\n"
+            + "真正的连麦混画（多路画面按布局表合成一帧）看节点5。";
+
+    /** 节点5 小节讲解：连麦本地混画。 */
+    public static final String DETAIL_N5 = ""
+            + "▍连麦是什么\n"
+            + "主播和观众实时互相看到听到。画面有两种合成方式：\n"
+            + "· 本地混流：主播端把\"自己 + 对方\"两路画面合成一帧再推给所有人（省服务器算力、"
+            + "主播耗电；本节演示的就是它）；\n"
+            + "· 云端混流：各路上行，服务器合成后下发（省终端电、但要付转码钱、多一跳延迟）。\n\n"
+            + "▍混画怎么做\n"
+            + "每一路 = 一张独立纹理（解码器输出或相机 OES，各自走完前处理链进自己的 FBO）。\n"
+            + "混画 = 在同一个帧缓冲里按\"矩形表\"各画一次：每个矩形一次 uv 重映射采样"
+            + "（本节做法），工程里也常用 glViewport 切矩形逐个画。"
+            + "布局切换 = 换一张矩形表——分屏/宫格/画中画本质上都只是数据，不是代码。\n\n"
+            + "▍四个细节\n"
+            + "· 名字标签：每个矩形一次半透明叠加，画在混画之后（\"画在最后\"原则 Again）；\n"
+            + "· 分割线：矩形之间的间隙露出 clear 底色，工程里也常给小窗描彩边；\n"
+            + "· 大小流：大窗用高分辨率纹理、小窗用低分辨率的\"订阅流\"，下行带宽立省一半；\n"
+            + "· 音频是另一条链：多路 PCM 混音（叠加+限幅）后与混画帧一起打包推流，和 GL 无关。";
 
     private static final String KEY_SPEED = "src_speed";
     private static final String K_MIRROR = "fx_mirror";
@@ -101,6 +123,11 @@ public class D42LivePreview extends BaseDemoEngine {
     private static final String K_PIP_SCALE = "pip_scale";
     private static final String K_PIP_X = "pip_x";
     private static final String K_PIP_Y = "pip_y";
+    // 节点5：连麦本地混画
+    private static final String K_CO_ON = "co_on";
+    private static final String K_CO_LAYOUT = "co_layout";
+    private static final String K_CO_GAP = "co_gap";
+    private static final String K_CO_LABEL = "co_label";
 
     /** 全屏合成着色器：程序化视频 + 前处理 + 抠像 + 画中画，一个 FS 走完整条链。 */
     private static final String VS = ""
@@ -126,6 +153,12 @@ public class D42LivePreview extends BaseDemoEngine {
             + "uniform float u_thresh;\n"
             + "uniform float u_pip;\n"
             + "uniform vec4 u_pipRect;\n"     // xy=左下角 uv, zw=宽高
+            + "uniform float u_co;\n"         // 连麦混画开关（节点5）
+            + "uniform vec4 u_rA;\n"          // 主播画面矩形表（uv 空间，原点左下）
+            + "uniform vec4 u_rB;\n"
+            + "uniform vec4 u_rB2;\n"
+            + "uniform float u_hasB2;\n"
+            + "uniform float u_aspect;\n"     // 屏幕宽/高，cover 裁剪要用像素比例
             + "out vec4 fragColor;\n"
             + "\n"
             + "// 程序化\"视频帧\"：运动色条 + 扫描高光 + 底部字幕条 + 中央绿幕区。\n"
@@ -142,6 +175,42 @@ public class D42LivePreview extends BaseDemoEngine {
             + "    float subj = 1.0 - smoothstep(0.85, 1.0, length(d));\n"
             + "    vec3 green = vec3(0.12, 0.82, 0.22) + 0.05 * sin(vec3(uv.yx * 60.0, 0.5));\n"
             + "    return mix(col, green, subj);\n"
+            + "}\n"
+            + "\n"
+            + "// 第二路画面（连麦观众）：冷色调背景 + 圆脸 + 蓝衣——和主播一路一眼可辨。\n"
+            + "vec3 guest(vec2 uv) {\n"
+            + "    uv = clamp(uv, 0.0, 1.0);\n"
+            + "    float band = floor(uv.x * 5.0);\n"
+            + "    vec3 col = 0.26 + 0.20 * cos(6.2831 * band / 5.0 + vec3(4.0, 3.0, 1.5));\n"
+            + "    col *= 0.72 + 0.16 * sin(u_time * u_speed * 1.3 + uv.x * 6.0);\n"
+            + "    vec2 face = (uv - vec2(0.5, 0.64)) / vec2(0.08, 0.08);\n"
+            + "    col = mix(col, vec3(0.90, 0.74, 0.60), 1.0 - smoothstep(0.88, 1.0, length(face)));\n"
+            + "    vec2 body = (uv - vec2(0.5, 0.26)) / vec2(0.14, 0.14);\n"
+            + "    col = mix(col, vec3(0.18, 0.34, 0.72), 1.0 - smoothstep(0.9, 1.0, length(body)));\n"
+            + "    return col;\n"
+            + "}\n"
+            + "\n"
+            + "// 连麦混画：判断 uv 落在哪个矩形里，用重映射坐标采对应那一路\n"
+            + "bool inR(vec2 uv, vec4 r) {\n"
+            + "    return uv.x > r.x && uv.y > r.y && uv.x < r.x + r.z && uv.y < r.y + r.w;\n"
+            + "}\n"
+            + "vec3 sampleA(vec2 uv, vec4 r) {\n"
+            + "    return video((uv - r.xy) / r.zw);\n"
+            + "}\n"
+            + "vec3 sampleB(vec2 uv, vec4 r) {\n"
+            + "    vec2 rel = (uv - r.xy) / r.zw;\n"
+            + "    // cover 裁剪：按矩形的\"像素宽高比\"裁采源画布中央，人物不因矩形瘦长而变形\n"
+            + "    float a = clamp(r.z * u_aspect / max(r.w, 0.0001), 0.25, 2.0);\n"
+            + "    rel = vec2(0.5 + (rel.x - 0.5) * min(1.0, a),\n"
+            + "               0.5 + (rel.y - 0.5) * min(1.0, 1.0 / a));\n"
+            + "    return guest(rel);\n"
+            + "}\n"
+            + "vec3 sampleB2(vec2 uv, vec4 r) {\n"
+            + "    vec2 rel = (uv - r.xy) / r.zw;\n"
+            + "    float a = clamp(r.z * u_aspect / max(r.w, 0.0001), 0.25, 2.0);\n"
+            + "    rel = vec2(0.5 + (rel.x - 0.5) * min(1.0, a),\n"
+            + "               0.5 + (rel.y - 0.5) * min(1.0, 1.0 / a));\n"
+            + "    return guest(vec2(1.0 - rel.x, rel.y));  // 第三路=第二路镜像，画面可辨\n"
             + "}\n"
             + "\n"
             + "// 调色：饱和度 + 色温（美颜链路的最后一环）\n"
@@ -162,6 +231,15 @@ public class D42LivePreview extends BaseDemoEngine {
             + "void main() {\n"
             + "    vec2 uv = v_uv;\n"
             + "    if (u_mirror > 0.5) uv.x = 1.0 - uv.x;\n"
+            + "\n"
+            + "    if (u_co > 0.5) {\n"
+            + "        vec3 c2 = vec3(0.015, 0.015, 0.02);\n"
+            + "        if (u_hasB2 > 0.5 && inR(uv, u_rB2)) c2 = sampleB2(uv, u_rB2);\n"
+            + "        if (inR(uv, u_rB)) c2 = sampleB(uv, u_rB);\n"
+            + "        else if (inR(uv, u_rA)) c2 = sampleA(uv, u_rA);\n"
+            + "        fragColor = vec4(c2, 1.0);\n"
+            + "        return;\n"
+            + "    }\n"
             + "\n"
             + "    vec3 c = video(uv);\n"
             + "    if (u_beauty > 0.001) {\n"
@@ -215,6 +293,9 @@ public class D42LivePreview extends BaseDemoEngine {
     private Mesh mQuad;
     private Mesh mOverQuad;
     private int mBadgeTex;
+    private int mLabelHost;      // 「主播」名牌
+    private int mLabelGuest;     // 「连麦」名牌
+    private int mLabelGuest2;    // 「连麦2」名牌（宫格布局用）
     private float mTime;
 
     @Override
@@ -238,6 +319,9 @@ public class D42LivePreview extends BaseDemoEngine {
                 .build();
 
         mBadgeTex = makeBadgeTexture();
+        mLabelHost = makeLabelTexture("主播", new int[]{190, 60, 60});
+        mLabelGuest = makeLabelTexture("连麦", new int[]{60, 100, 200});
+        mLabelGuest2 = makeLabelTexture("连麦2", new int[]{50, 140, 150});
         mOverProg.use();
         mOverProg.set("u_tex", 0);
     }
@@ -276,6 +360,34 @@ public class D42LivePreview extends BaseDemoEngine {
         return ids[0];
     }
 
+    /** 名字标签贴图：半透明圆角底 + 白字（直播画面里的"主播/连麦"角标）。 */
+    private int makeLabelTexture(String text, int[] rgb) {
+        Bitmap bmp = Bitmap.createBitmap(160, 64, Bitmap.Config.ARGB_8888);
+        Canvas cv = new Canvas(bmp);
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setColor(Color.argb(170, rgb[0], rgb[1], rgb[2]));
+        cv.drawRoundRect(new RectF(2, 4, 158, 60), 14, 14, p);
+        p.setColor(Color.WHITE);
+        p.setTextSize(34);
+        p.setFakeBoldText(true);
+        p.setTextAlign(Paint.Align.CENTER);
+        cv.drawText(text, 80, 44, p);
+        int[] ids = new int[1];
+        GLES30.glGenTextures(1, ids, 0);
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, ids[0]);
+        GLUtils.texImage2D(GLES30.GL_TEXTURE_2D, 0, bmp, 0);
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D,
+                GLES30.GL_TEXTURE_MIN_FILTER, GLES30.GL_LINEAR);
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D,
+                GLES30.GL_TEXTURE_MAG_FILTER, GLES30.GL_LINEAR);
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D,
+                GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_CLAMP_TO_EDGE);
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D,
+                GLES30.GL_TEXTURE_WRAP_T, GLES30.GL_CLAMP_TO_EDGE);
+        bmp.recycle();
+        return ids[0];
+    }
+
     @Override
     public void onDrawFrame(float deltaTime) {
         mTime += deltaTime;
@@ -296,23 +408,78 @@ public class D42LivePreview extends BaseDemoEngine {
         float px = clamp01(getFloat(K_PIP_X));
         float py = clamp01(getFloat(K_PIP_Y));
         mProg.set("u_pipRect", px, py, ps, ps * 9f / 16f * (float) mWidth / (float) mHeight);
+
+        // ── 节点5 连麦本地混画：Java 算"矩形表"，FS 按矩形各采各路 ──
+        boolean coOn = getBool(K_CO_ON);
+        mProg.set("u_co", coOn ? 1f : 0f);
+        float[] coA = {0f, 0f, 1f, 1f};
+        float[] coB = {0f, 0f, 0f, 0f};
+        float[] coB2 = {0f, 0f, 0f, 0f};
+        boolean hasB2 = false;
+        if (coOn) {
+            float g = clamp01(getFloat(K_CO_GAP));
+            int layout = getOptionIndex(K_CO_LAYOUT);
+            if (layout == 0) { // 画中画：主播全屏 + 观众小窗
+                float pw = 0.34f;
+                float ph = Math.min(0.6f, pw * (float) mWidth / mHeight);
+                coB = new float[]{0.97f - pw, 0.03f, pw, ph};
+            } else if (layout == 1) { // 左右分屏
+                float w = (1f - g) / 2f;
+                coA = new float[]{0f, 0f, w, 1f};
+                coB = new float[]{1f - w, 0f, w, 1f};
+            } else if (layout == 2) { // 上下分屏
+                float h = (1f - g) / 2f;
+                coA = new float[]{0f, 1f - h, 1f, h};
+                coB = new float[]{0f, 0f, 1f, h};
+            } else { // 一大两小宫格
+                float top = 0.6f;
+                coA = new float[]{0f, top + g, 1f, 1f - top - g};
+                float w2 = (1f - 3f * g) / 2f;
+                float h2 = top - g;
+                coB = new float[]{g, g, w2, h2};
+                coB2 = new float[]{2f * g + w2, g, w2, h2};
+                hasB2 = true;
+            }
+        }
+        mProg.set("u_rA", coA[0], coA[1], coA[2], coA[3]);
+        mProg.set("u_rB", coB[0], coB[1], coB[2], coB[3]);
+        mProg.set("u_rB2", coB2[0], coB2[1], coB2[2], coB2[3]);
+        mProg.set("u_hasB2", hasB2 ? 1f : 0f);
+        mProg.set("u_aspect", mHeight == 0 ? 1f : (float) mWidth / mHeight);
         mQuad.draw(GLES30.GL_TRIANGLE_STRIP);
 
+        // ── 2D 叠加层（名字标签 / LIVE 角标）：半透明混合、"画在最后"原则 ──
+        GLES30.glDisable(GLES30.GL_DEPTH_TEST);
+        GLES30.glEnable(GLES30.GL_BLEND);
+        GLES30.glBlendFunc(GLES30.GL_SRC_ALPHA, GLES30.GL_ONE_MINUS_SRC_ALPHA);
+        glUseProgramSafe(mOverProg);
+        GLES30.glActiveTexture(GLES30.GL_TEXTURE0);
+        if (coOn && getBool(K_CO_LABEL)) {
+            drawLabel(mLabelHost, coA);
+            drawLabel(mLabelGuest, coB);
+            if (hasB2) drawLabel(mLabelGuest2, coB2);
+        }
         if (getBool(K_BADGE)) {
-            // 水印画在最终画面之上：半透明混合 + 保守深度(只画 2D 覆盖层，关深度测试)
-            GLES30.glDisable(GLES30.GL_DEPTH_TEST);
-            GLES30.glEnable(GLES30.GL_BLEND);
-            GLES30.glBlendFunc(GLES30.GL_SRC_ALPHA, GLES30.GL_ONE_MINUS_SRC_ALPHA);
-            glUseProgramSafe(mOverProg);
-            GLES30.glActiveTexture(GLES30.GL_TEXTURE0);
             GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, mBadgeTex);
-            // 右上角角标：NDC 宽 0.62（≈屏宽 31%），高按贴图 220:80 比例换算
+            // 右上角角标（中心点语义）：宽 0.62 NDC ≈ 屏宽 31%，高按贴图 220:80 比例
             float bw = 0.62f;
             float bh = bw * (float) mWidth / mHeight * (80f / 220f);
-            mOverProg.set("u_rect", 1f - bw - 0.05f, 1f - bh - 0.045f, bw, bh);
+            mOverProg.set("u_rect", 1f - bw / 2f - 0.05f, 1f - bh / 2f - 0.05f, bw, bh);
             mOverQuad.draw(GLES30.GL_TRIANGLE_STRIP);
-            GLES30.glDisable(GLES30.GL_BLEND);
         }
+        GLES30.glDisable(GLES30.GL_BLEND);
+    }
+
+    /** 在混画矩形内叠一个名字标签（u_rect.xy 是中心点、zw 是半宽半高）。 */
+    private void drawLabel(int tex, float[] r) {
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, tex);
+        float hw = 0.075f;
+        float hh = 0.025f;
+        float cx = (r[0] + r[2] / 2f) * 2f - 1f + 0.06f;
+        // 贴矩形顶部；全高矩形再往下压，避开演示 UI 的标题栏
+        float cy = Math.min((r[1] + r[3]) * 2f - 1f - hh - 0.05f, 0.72f);
+        mOverProg.set("u_rect", cx, cy, hw, hh);
+        mOverQuad.draw(GLES30.GL_TRIANGLE_STRIP);
     }
 
     private static float clamp01(float v) {
@@ -347,6 +514,12 @@ public class D42LivePreview extends BaseDemoEngine {
         specs.add(ParamSpec.floatSpec(K_PIP_SCALE, "小窗大小", 0.1f, 0.5f, 0.24f));
         specs.add(ParamSpec.floatSpec(K_PIP_X, "小窗左下角X", 0f, 0.95f, 0.68f));
         specs.add(ParamSpec.floatSpec(K_PIP_Y, "小窗左下角Y", 0f, 0.95f, 0.72f));
+        // ---- 节点5：连麦本地混画 ----
+        specs.add(ParamSpec.boolSpec(K_CO_ON, "连麦混画", false));
+        specs.add(ParamSpec.optionSpec(K_CO_LAYOUT, "连麦布局", new String[]{
+                "画中画（右下）", "左右分屏", "上下分屏", "一大两小宫格"}, 1));
+        specs.add(ParamSpec.floatSpec(K_CO_GAP, "分割间隙", 0f, 0.05f, 0.012f));
+        specs.add(ParamSpec.boolSpec(K_CO_LABEL, "显示名字标签", true));
         return specs;
     }
 
@@ -355,6 +528,9 @@ public class D42LivePreview extends BaseDemoEngine {
         mQuad.dispose();
         mOverQuad.dispose();
         GLES30.glDeleteTextures(1, new int[]{mBadgeTex}, 0);
+        GLES30.glDeleteTextures(1, new int[]{mLabelHost}, 0);
+        GLES30.glDeleteTextures(1, new int[]{mLabelGuest}, 0);
+        GLES30.glDeleteTextures(1, new int[]{mLabelGuest2}, 0);
         mProg.release();
         mOverProg.release();
     }
