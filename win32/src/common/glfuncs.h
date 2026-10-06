@@ -3,6 +3,16 @@
 #pragma once
 #include <windows.h>
 #include <GL/gl.h>
+#include <cstddef>
+
+// ---- types missing from the MSVC SDK's GL 1.1 header (MinGW defines them) ----
+#ifndef GL_VERSION_1_5
+typedef ptrdiff_t GLsizeiptr;
+typedef ptrdiff_t GLintptr;
+#endif
+#ifndef GL_VERSION_2_0
+typedef char GLchar;
+#endif
 
 // ---- GL enums that are missing from the Windows SDK's GL 1.1 header ----
 #ifndef GL_ARRAY_BUFFER
@@ -19,6 +29,12 @@
 #endif
 #ifndef GL_STREAM_DRAW
 #define GL_STREAM_DRAW 0x88E0
+#endif
+#ifndef GL_DYNAMIC_COPY
+#define GL_DYNAMIC_COPY 0x88EA
+#endif
+#ifndef GL_STENCIL_INDEX8
+#define GL_STENCIL_INDEX8 0x8D48
 #endif
 #ifndef GL_BLEND_EQUATION
 #define GL_BLEND_EQUATION 0x8009
@@ -72,22 +88,22 @@
 #define GL_TEXTURE_CUBE_MAP 0x8513
 #endif
 #ifndef GL_TEXTURE_CUBE_MAP_POSITIVE_X
-#define GL_TEXTURE_CUBE_MAP_POSITIVE_X 0x8513
+#define GL_TEXTURE_CUBE_MAP_POSITIVE_X 0x8515
 #endif
 #ifndef GL_TEXTURE_CUBE_MAP_NEGATIVE_X
-#define GL_TEXTURE_CUBE_MAP_NEGATIVE_X 0x8514
+#define GL_TEXTURE_CUBE_MAP_NEGATIVE_X 0x8516
 #endif
 #ifndef GL_TEXTURE_CUBE_MAP_POSITIVE_Y
-#define GL_TEXTURE_CUBE_MAP_POSITIVE_Y 0x8515
+#define GL_TEXTURE_CUBE_MAP_POSITIVE_Y 0x8517
 #endif
 #ifndef GL_TEXTURE_CUBE_MAP_NEGATIVE_Y
-#define GL_TEXTURE_CUBE_MAP_NEGATIVE_Y 0x8516
+#define GL_TEXTURE_CUBE_MAP_NEGATIVE_Y 0x8518
 #endif
 #ifndef GL_TEXTURE_CUBE_MAP_POSITIVE_Z
-#define GL_TEXTURE_CUBE_MAP_POSITIVE_Z 0x8517
+#define GL_TEXTURE_CUBE_MAP_POSITIVE_Z 0x8519
 #endif
 #ifndef GL_TEXTURE_CUBE_MAP_NEGATIVE_Z
-#define GL_TEXTURE_CUBE_MAP_NEGATIVE_Z 0x8518
+#define GL_TEXTURE_CUBE_MAP_NEGATIVE_Z 0x851A
 #endif
 #ifndef GL_TEXTURE_CUBE_MAP_SEAMLESS
 #define GL_TEXTURE_CUBE_MAP_SEAMLESS 0x884F
@@ -122,8 +138,85 @@
 #ifndef GL_MULTISAMPLE
 #define GL_MULTISAMPLE 0x809D
 #endif
+#ifndef GL_CLAMP_TO_EDGE
+#define GL_CLAMP_TO_EDGE 0x812F
+#endif
+#ifndef GL_TEXTURE_WRAP_R
+#define GL_TEXTURE_WRAP_R 0x8072
+#endif
+#ifndef GL_MIRRORED_REPEAT
+#define GL_MIRRORED_REPEAT 0x8370
+#endif
+#ifndef GL_VERTEX_SHADER
+#define GL_VERTEX_SHADER 0x8B31
+#endif
+#ifndef GL_FRAGMENT_SHADER
+#define GL_FRAGMENT_SHADER 0x8B30
+#endif
+#ifndef GL_COMPILE_STATUS
+#define GL_COMPILE_STATUS 0x8B81
+#endif
+#ifndef GL_LINK_STATUS
+#define GL_LINK_STATUS 0x8B82
+#endif
+#ifndef GL_INFO_LOG_LENGTH
+#define GL_INFO_LOG_LENGTH 0x8B84
+#endif
+#ifndef GL_TEXTURE0
+#define GL_TEXTURE0 0x84C0
+#define GL_TEXTURE1 0x84C1
+#define GL_TEXTURE2 0x84C2
+#define GL_TEXTURE3 0x84C3
+#define GL_TEXTURE4 0x84C4
+#define GL_TEXTURE5 0x84C5
+#define GL_TEXTURE6 0x84C6
+#define GL_TEXTURE7 0x84C7
+#endif
+#ifndef GL_TEXTURE_BASE_LEVEL
+#define GL_TEXTURE_BASE_LEVEL 0x813C
+#endif
+#ifndef GL_TEXTURE_MAX_LEVEL
+#define GL_TEXTURE_MAX_LEVEL 0x813D
+#endif
+#ifndef GL_TEXTURE_MIN_LOD
+#define GL_TEXTURE_MIN_LOD 0x813A
+#endif
+#ifndef GL_TEXTURE_MAX_LOD
+#define GL_TEXTURE_MAX_LOD 0x813B
+#endif
+#ifndef GL_TEXTURE_LOD_BIAS
+#define GL_TEXTURE_LOD_BIAS 0x8501
+#endif
+#ifndef GL_BGRA
+#define GL_BGRA 0x80E1
+#endif
+#ifndef GL_SAMPLES
+#define GL_SAMPLES 0x80A9
+#endif
+#ifndef GL_STENCIL_ATTACHMENT
+#define GL_STENCIL_ATTACHMENT 0x8D20
+#endif
+#ifndef GL_DEPTH_COMPONENT16
+#define GL_DEPTH_COMPONENT16 0x81A5
+#endif
+#ifndef GL_MAP_READ_BIT
+#define GL_MAP_READ_BIT 0x0001
+#endif
+#ifndef GL_MAP_UNSYNCHRONIZED_BIT
+#define GL_MAP_UNSYNCHRONIZED_BIT 0x0020
+#endif
+#ifndef GL_MAX_DRAW_BUFFERS
+#define GL_MAX_DRAW_BUFFERS 0x8824
+#endif
+#ifndef GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN
+#define GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN 0x8C85
+#endif
 
 // ---- function typedefs + extern declarations (X-macro keeps them in sync) ----
+// NOTE: GL 1.1 functions exported by opengl32.dll and already declared by the
+// SDK header (glDrawArrays/glDrawElements/glGenTextures/glDeleteTextures/
+// glBindTexture/glTexImage2D/glTexParameteri) are called directly and are NOT
+// listed here - redeclaring them as pointers is a redefinition error on MSVC.
 #define GL_FUNCTIONS(X)                                                                              \
     X(glGenVertexArrays,          void,     (GLsizei n, GLuint* arrays))                             \
     X(glBindVertexArray,          void,     (GLuint array))                                          \
@@ -157,20 +250,15 @@
     X(glUniform1i,                void,     (GLint location, GLint v0))                              \
     X(glUniform1fv,               void,     (GLint location, GLsizei count, const GLfloat* value))   \
     X(glUniformMatrix4fv,         void,     (GLint location, GLsizei count, GLboolean transpose, const GLfloat* value)) \
+    X(glGetUniformBlockIndex,     GLuint,   (GLuint program, const GLchar* uniformBlockName))      \
+    X(glUniformBlockBinding,      void,     (GLuint program, GLuint uniformBlockIndex, GLuint uniformBlockBinding)) \
     X(glVertexAttribPointer,      void,     (GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void* pointer)) \
     X(glEnableVertexAttribArray,  void,     (GLuint index))                                          \
     X(glVertexAttribDivisor,      void,     (GLuint index, GLuint divisor))                          \
-    X(glDrawArrays,               void,     (GLenum mode, GLint first, GLsizei count))               \
-    X(glDrawElements,             void,     (GLenum mode, GLsizei count, GLenum type, const void* indices)) \
     X(glDrawArraysInstanced,      void,     (GLenum mode, GLint first, GLsizei count, GLsizei instanceCount)) \
     X(glDrawElementsInstanced,    void,     (GLenum mode, GLsizei count, GLenum type, const void* indices, GLsizei instanceCount)) \
     X(glActiveTexture,            void,     (GLenum texture))                                        \
-    X(glGenTextures,              void,     (GLsizei n, GLuint* textures))                           \
-    X(glDeleteTextures,           void,     (GLsizei n, const GLuint* textures))                     \
-    X(glBindTexture,              void,     (GLenum target, GLuint texture))                         \
-    X(glTexImage2D,               void,     (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void* pixels)) \
     X(glTexImage3D,               void,     (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const void* pixels)) \
-    X(glTexParameteri,            void,     (GLenum target, GLenum pname, GLint param))              \
     X(glGenerateMipmap,           void,     (GLenum target))                                         \
     X(glGenFramebuffers,          void,     (GLsizei n, GLuint* framebuffers))                       \
     X(glDeleteFramebuffers,       void,     (GLsizei n, const GLuint* framebuffers))                 \

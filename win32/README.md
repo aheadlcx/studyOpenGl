@@ -7,23 +7,33 @@
 
 ## 编译
 
-### 方式 A：MinGW-w64 g++（最简单）
+### 方式 A：一条命令（推荐）
 
-1. 安装 [MinGW-w64](https://winlibs.com/)（解压即用），把 `bin` 加入 PATH；
-2. 双击或运行 `build.bat`；
-3. 产物：`build\study_gl.exe`。
+已装 MSVC（Visual Studio / Build Tools）或 MinGW-w64 任意一个即可，
+直接双击或运行 `build.bat`：
 
-也可以手动一条命令：
+- `cl` / `g++` 已在 PATH：直接编译；
+- 都不在 PATH：`build.bat` 会自动探测已安装的 MSVC 工具集与 Windows SDK，
+  自己设置 INCLUDE/LIB/PATH 后编译（无需打开开发者命令行）。
+
+产物：`build\study_gl.exe`。
+
+### 方式 B：手动命令
+
+MinGW：
 
 ```bat
-g++ -O2 -std=c++14 src/main.cpp src/common/glfuncs.cpp src/chapters/ch*.cpp ^
+g++ -O2 -std=c++14 src/main.cpp src/common/glfuncs.cpp src/common/wglwin.cpp src/chapters/ch*.cpp ^
     -o build/study_gl.exe -lopengl32 -luser32 -lgdi32
 ```
 
-### 方式 B：Visual Studio (MSVC)
+MSVC（任意命令行均可，脚本会自动定位工具链）：
 
-1. 打开 "x64 Native Tools Command Prompt for VS"；
-2. 运行 `build.bat`；或用 CMake：
+```bat
+build.bat
+```
+
+或用 CMake：
 
 ```bat
 cmake -B build -S . && cmake --build build --config Release

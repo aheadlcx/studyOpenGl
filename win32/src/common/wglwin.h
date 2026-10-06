@@ -2,6 +2,15 @@
 // Mirrors what EglCore/GLThread/RenderSurface do on the Android side.
 #pragma once
 #include <windows.h>
+// VK_OBRACKET/VK_RBRACKET do not exist in the Windows SDK - map to the
+// US-layout OEM keys '[' (0xDB) and ']' (0xDD).
+#ifndef VK_OBRACKET
+#define VK_OBRACKET VK_OEM_4
+#endif
+#ifndef VK_RBRACKET
+#define VK_RBRACKET VK_OEM_6
+#endif
+
 
 namespace win {
 

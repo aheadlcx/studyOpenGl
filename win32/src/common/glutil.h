@@ -92,7 +92,7 @@ inline Mesh makeMesh(const std::vector<float>& verts,
     for (const AttrDef& a : attrs) stride += a.size * 4;
     int offset = 0;
     for (const AttrDef& a : attrs) {
-        glVertexAttribPointer(a.loc, a.size, GL_FLOAT, GL_FALSE, stride, (const void*)(long)offset);
+        glVertexAttribPointer(a.loc, a.size, GL_FLOAT, GL_FALSE, stride, (const void*)(size_t)offset);
         glEnableVertexAttribArray(a.loc);
         offset += a.size * 4;
     }
@@ -122,7 +122,7 @@ inline void meshAddInstanced(Mesh& m, const std::vector<float>& data,
     for (const AttrDef& a : attrs) stride += a.size * 4;
     int offset = 0;
     for (const AttrDef& a : attrs) {
-        glVertexAttribPointer(a.loc, a.size, GL_FLOAT, GL_FALSE, stride, (const void*)(long)offset);
+        glVertexAttribPointer(a.loc, a.size, GL_FLOAT, GL_FALSE, stride, (const void*)(size_t)offset);
         glEnableVertexAttribArray(a.loc);
         glVertexAttribDivisor(a.loc, 1);
         offset += a.size * 4;

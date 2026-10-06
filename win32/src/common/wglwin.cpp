@@ -130,15 +130,20 @@ bool open(Window& w, const char* title, int width, int height, int msaaSamples) 
         if (msaaSamples > 0) printf("[win] MSAA pixel format unavailable, using 0 samples\n");
         if (!setPixelFormatLegacy(w.hdc)) return false;
     }
-    w.hglrc = wglCreateContext(w.hdc);
-    if (!w.hglrc) { printf("[win] wglCreateContext failed\n"); return false; }
-    if (!wglMakeCurrent(w.hdc, w.hglrc)) { printf("[win] wglMakeCurrent failed\n"); return false; }
-
-    // cleanup dummy
+    // cleanup dummy BEFORE creating the real context: a later
+    // wglMakeCurrent(nullptr,nullptr) would unbind the real context and
+    // wglGetProcAddress would then resolve nothing (classic WGL trap).
     wglMakeCurrent(nullptr, nullptr);
     wglDeleteContext(dummyRc);
     ReleaseDC(dummy, dummyDc);
     DestroyWindow(dummy);
+    // the dummy's WM_DESTROY calls PostQuitMessage -> a stale WM_QUIT would sit in
+    // the queue and make the real window's first beginFrame() quit immediately.
+    { MSG m; while (PeekMessageA(&m, nullptr, 0, 0, PM_REMOVE)) {} }
+
+    w.hglrc = wglCreateContext(w.hdc);
+    if (!w.hglrc) { printf("[win] wglCreateContext failed\n"); return false; }
+    if (!wglMakeCurrent(w.hdc, w.hglrc)) { printf("[win] wglMakeCurrent failed\n"); return false; }
 
     static bool glLoaded = false;
     if (!glLoaded) {

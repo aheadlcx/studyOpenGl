@@ -67,8 +67,8 @@ void main() { fragColor = texture(u_array, vec3(v_uv, v_layer)); }
         float base[6][3] = { {-1,-1,0},{1,-1,0},{-1,1,0},{1,-1,0},{1,1,0},{-1,1,0} };
         for (int v = 0; v < 6; v++) {
             verts.insert(verts.end(), {
-                cx + base[v][0]*h, cy + base[v][1]*h, 0,
-                base[v][0] < 0 ? 0 : 1, base[v][1] < 0 ? 0 : 1,
+                cx + base[v][0]*h, cy + base[v][1]*h, 0.0f,
+                base[v][0] < 0 ? 0.0f : 1.0f, base[v][1] < 0 ? 0.0f : 1.0f,
                 (float)q
             });
         }
