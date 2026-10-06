@@ -93,12 +93,21 @@ bool open(Window& w, const char* title, int width, int height, int msaaSamples) 
     DWORD style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
 
     // ---- phase 1: tiny dummy window + legacy context to load WGL_ARB fns ----
+    // NOTE: this MUST fully finish (incl. destroying the dummy) BEFORE the real
+    // window is created/shown. Doing wglMakeCurrent on the hidden dummy after
+    // another window is visible deadlocks the driver (DWM begins compositing
+    // the visible window; the hidden-window context bind never returns).
     HWND dummy = CreateWindowExA(0, WND_CLASS, "dummy", WS_OVERLAPPEDWINDOW,
                                  0, 0, 8, 8, nullptr, nullptr, inst, nullptr);
     HDC dummyDc = GetDC(dummy);
     if (!setPixelFormatLegacy(dummyDc)) return false;
     HGLRC dummyRc = wglCreateContext(dummyDc);
     loadWglArb(dummyDc, dummyRc);           // resolves wglChoosePixelFormatARB
+    wglMakeCurrent(nullptr, nullptr);
+    wglDeleteContext(dummyRc);
+    ReleaseDC(dummy, dummyDc);
+    DestroyWindow(dummy);
+    { MSG m; while (PeekMessageA(&m, nullptr, 0, 0, PM_REMOVE)) {} } // drop WM_QUIT from DestroyWindow
 
     // ---- phase 2: real window ----
     RECT rc = {0, 0, width, height};
@@ -113,8 +122,10 @@ bool open(Window& w, const char* title, int width, int height, int msaaSamples) 
     ShowWindow(w.hwnd, SW_SHOW);
 
     w.hdc = GetDC(w.hwnd);
-    // enable ANSI/VT escape sequences in the attached console (Win10+)
-    if (AttachConsole(ATTACH_PARENT_PROCESS) || GetConsoleWindow()) {
+    // enable ANSI/VT escape sequences for console HUD (Win10+).
+    // NOTE: deliberately NO AttachConsole here - it stalls when the parent has a
+    // conpty and it hijacks redirected stdout (log files ended up empty).
+    {
         HANDLE cout = GetStdHandle(STD_OUTPUT_HANDLE);
         DWORD mode = 0;
         if (GetConsoleMode(cout, &mode))
@@ -130,17 +141,7 @@ bool open(Window& w, const char* title, int width, int height, int msaaSamples) 
         if (msaaSamples > 0) printf("[win] MSAA pixel format unavailable, using 0 samples\n");
         if (!setPixelFormatLegacy(w.hdc)) return false;
     }
-    // cleanup dummy BEFORE creating the real context: a later
-    // wglMakeCurrent(nullptr,nullptr) would unbind the real context and
-    // wglGetProcAddress would then resolve nothing (classic WGL trap).
-    wglMakeCurrent(nullptr, nullptr);
-    wglDeleteContext(dummyRc);
-    ReleaseDC(dummy, dummyDc);
-    DestroyWindow(dummy);
-    // the dummy's WM_DESTROY calls PostQuitMessage -> a stale WM_QUIT would sit in
-    // the queue and make the real window's first beginFrame() quit immediately.
-    { MSG m; while (PeekMessageA(&m, nullptr, 0, 0, PM_REMOVE)) {} }
-
+    // context is fresh; GL function pointers are loaded against it below.
     w.hglrc = wglCreateContext(w.hdc);
     if (!w.hglrc) { printf("[win] wglCreateContext failed\n"); return false; }
     if (!wglMakeCurrent(w.hdc, w.hglrc)) { printf("[win] wglMakeCurrent failed\n"); return false; }
@@ -169,8 +170,11 @@ bool beginFrame(Window& w) {
     static float fps = 0.0f;
     auto now = std::chrono::steady_clock::now();
     w.time = std::chrono::duration<double>(now - t0).count();
-    if (w.time > last) {
-        float instant = (float)(1.0 / (w.time - last));
+    double delta = w.time - last;
+    if (delta > 0) {
+        // clamp: first frame / debugger stalls would show absurd FPS otherwise
+        float instant = (float)(1.0 / delta);
+        if (instant > 1000.0f) instant = 1000.0f;
         fps = fps == 0.0f ? instant : fps * 0.9f + instant * 0.1f;
         w.fps = fps;
     }
@@ -180,6 +184,25 @@ bool beginFrame(Window& w) {
 
 void endFrame(Window& w) {
     if (w.hdc) SwapBuffers(w.hdc);
+    // optional headless probe: STUDY_GL_PIXEL_PROBE=<file> dumps the center
+    // pixel every 120 frames (rendering ground truth without screenshots)
+    static bool probeInit = false;
+    static FILE* probe = nullptr;
+    static int probeFrame = 0;
+    if (!probeInit) {
+        probeInit = true;
+        char buf[MAX_PATH];
+        if (GetEnvironmentVariableA("STUDY_GL_PIXEL_PROBE", buf, sizeof(buf)) && buf[0])
+            probe = fopen(buf, "w");
+    }
+    if (probe && ++probeFrame % 120 == 0) {
+        unsigned char px[4] = {0};
+        glReadPixels(w.width / 2, w.height / 2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
+        fprintf(probe, "frame=%d %dx%d center=RGB(%u,%u,%u) err=0x%X\n",
+                probeFrame, w.width, w.height, px[0], px[1], px[2],
+                (unsigned)glGetError());
+        fflush(probe);
+    }
 }
 
 void close(Window& w) {

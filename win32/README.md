@@ -51,6 +51,17 @@ build\study_gl.exe 14     :: 直接运行第 14 章（深度测试）
 每章窗口内按 `ESC` 退出。按键说明会打印在控制台（`printf`），例如第 14 章：
 `D` 切换深度函数、`M` 深度掩码、`O` 多边形偏移。
 
+### 无头像素探针（排查渲染问题）
+
+设置环境变量后，程序每 120 帧把窗口中心像素和 GL 错误码写进指定文件，
+不需要截图就能确认"真的画了什么"：
+
+```bat
+set STUDY_GL_PIXEL_PROBE=pixel.txt
+build\study_gl.exe 17
+type pixel.txt   :: frame=120 1000x700 center=RGB(79,157,202) err=0x0
+```
+
 ## 章节对照（与 App / docs 编号一致）
 
 | # | 源文件 | 内容 |

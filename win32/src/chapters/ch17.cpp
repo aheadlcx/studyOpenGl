@@ -6,7 +6,18 @@ int run_ch17() {
     win::Window w;
     if (!win::open(w, "Ch17 - Texture 2D (W wrap, F filter, +/- uv scale, Y flip)", 1000, 700)) return 1;
 
-    const char* VS = shaders::VS_TEX;
+    // local VS: the quad is already in NDC, no MVP needed (an unset u_mvp is a
+    // ZERO matrix in GL -> every vertex clipped away -> blank dark window)
+    const char* VS = R"(#version 330
+layout(location=0) in vec3 a_pos;
+layout(location=2) in vec2 a_uv;
+uniform float u_uvScale = 1.0;
+out vec2 v_uv;
+void main() {
+    v_uv = a_uv * u_uvScale;
+    gl_Position = vec4(a_pos, 1.0);
+}
+)";
     const char* FS = R"(#version 330
 in vec2 v_uv;
 uniform sampler2D u_tex;

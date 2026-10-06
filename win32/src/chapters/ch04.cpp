@@ -153,6 +153,12 @@ void main() { fragColor = v_color; }
         glBufferSubData(GL_ARRAY_BUFFER, 0, grid.size() * sizeof(float), grid.data());
         glDrawArrays(GL_TRIANGLES, 0, N * N * 6);
         glBindVertexArray(0);
+
+        // present the frame and allow ESC to quit (was missing: the loop kept
+        // drawing into the back buffer that never reached the screen -> white
+        // window; ESC also never worked because keyTap/present were skipped)
+        if (win::keyTap(VK_ESCAPE)) break;
+        win::endFrame(w);
     }
     glDeleteBuffers(1, &gridVbo);
     glDeleteVertexArrays(1, &gridVao);

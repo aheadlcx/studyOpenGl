@@ -51,6 +51,7 @@ static Chapter chapters[] = {
 static const int CHAPTER_COUNT = sizeof(chapters) / sizeof(chapters[0]);
 
 int main(int argc, char** argv) {
+    setvbuf(stdout, nullptr, _IONBF, 0); // unbuffered: logs survive even if killed
     if (argc >= 2) {
         int n = atoi(argv[1]);
         for (int i = 0; i < CHAPTER_COUNT; i++)

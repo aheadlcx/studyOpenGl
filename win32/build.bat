@@ -5,9 +5,15 @@ rem  Works with MSVC (cl) or MinGW-w64 (g++).
 rem  When neither is in PATH, auto-locates an installed MSVC
 rem  toolset (BuildTools / IDE) and sets INCLUDE/LIB manually,
 rem  so a plain cmd or double-click build works out of the box.
+rem
+rem  MSVC path builds in two steps (per-TU /c compile, then link):
+rem  single-invocation multi-TU cl has been observed to die
+rem  silently between codegen and link on some setups.
 rem ============================================================
 setlocal EnableExtensions
 cd /d %~dp0
+
+if not exist build mkdir build
 
 set CHAPTERS=
 for %%f in (src\chapters\ch*.cpp) do call set CHAPTERS=%%CHAPTERS%% %%f
@@ -41,18 +47,24 @@ echo [build] located MSVC toolset: %MSVCROOT%
 echo [build] windows sdk: %SDKVER%
 
 :msvc
-echo [build] using MSVC (cl)...
-if not exist build mkdir build
-cl /nologo /EHsc /W3 /O2 /std:c++14 /utf-8 ^
-   src\main.cpp src\common\glfuncs.cpp src\common\wglwin.cpp %CHAPTERS% ^
-   /Fo"build\\" /Fe"build\study_gl.exe" ^
-   opengl32.lib user32.lib gdi32.lib
-if %errorlevel%==0 echo [ok] build\study_gl.exe created. Run: build\study_gl.exe
-exit /b %errorlevel%
+echo [build] using MSVC (cl), two-step compile+link...
+for %%f in (src\main.cpp src\common\glfuncs.cpp src\common\wglwin.cpp src\chapters\ch*.cpp) do (
+    cl /nologo /EHsc /W3 /O2 /std:c++14 /utf-8 /c %%f /Fobuild\
+    if errorlevel 1 goto :clfail
+)
+set OBJLIST=build\main.obj build\glfuncs.obj build\wglwin.obj
+for %%f in (src\chapters\ch*.cpp) do call set OBJLIST=%%OBJLIST%% build\%%~nf.obj
+link /nologo %OBJLIST% /OUT:build\study_gl.exe opengl32.lib user32.lib gdi32.lib
+if errorlevel 1 goto :clfail
+echo [ok] build\study_gl.exe created. Run: build\study_gl.exe
+exit /b 0
+
+:clfail
+echo [error] build failed
+exit /b 1
 
 :mingw
 echo [build] using MinGW g++...
-if not exist build mkdir build
 set SRC=src/main.cpp src/common/glfuncs.cpp src/common/wglwin.cpp
 for %%f in (src\chapters\ch*.cpp) do call set SRC=%%SRC%% %%f
 g++ -O2 -std=c++14 %SRC% -o build\study_gl.exe ^

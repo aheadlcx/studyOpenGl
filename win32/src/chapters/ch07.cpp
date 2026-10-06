@@ -5,7 +5,7 @@
 
 int run_ch07() {
     win::Window w;
-    if (!win::open(w, "Ch07 - Hello Triangle (T: second triangle, H: hue)", 1000, 700)) return 1;
+if (!win::open(w, "Ch07 - Hello Triangle (T: second triangle, H: hue)", 1000, 700)) return 1;
 
     const char* VS = shaders::VS_TRI;
     const char* FS = R"(#version 330
@@ -14,7 +14,7 @@ uniform vec3 u_tint;
 out vec4 fragColor;
 void main() { fragColor = vec4(v_color * u_tint, 1.0); }
 )";
-    GLuint prog = makeProgram(VS, FS);
+GLuint prog = makeProgram(VS, FS);
 
     Mesh mainTri = makeMesh({
         -0.6f, -0.5f, 0,  1.0f, 0.2f, 0.2f,
@@ -35,7 +35,7 @@ void main() { fragColor = vec4(v_color * u_tint, 1.0); }
     float hue = 0.55f, rotSpeed = 0.5f, angle = 0;
     float scale = 1.0f;
 
-    while (win::beginFrame(w)) {
+while (win::beginFrame(w)) {
         if (win::keyTap('T')) second = !second;
         if (win::keyTap('H')) hue += 0.1f;
         if (win::keyDown(VK_UP))   rotSpeed += 0.01f;
@@ -46,7 +46,7 @@ void main() { fragColor = vec4(v_color * u_tint, 1.0); }
         angle += rotSpeed;
 
         int vw = w.vpWidth(), vh = w.vpHeight();
-        resetState(vw, vh, 0.04f, 0.05f, 0.09f);
+resetState(vw, vh, 0.04f, 0.05f, 0.09f);
 
         // tint from HSV(hue)
         float c = 0.85f, x = c * (1.0f - fabsf(fmodf(hue * 6.0f, 2.0f) - 1.0f));
